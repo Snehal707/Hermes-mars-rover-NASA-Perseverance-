@@ -1,0 +1,23 @@
+# Hermes Agent configuration for Mars Rover (headless)
+# Paths are relative to project root; set HERMES_PROJECT_ROOT or use absolute paths in production.
+# If you use ~/.hermes/config.yaml, copy this file there and keep the model ID in sync.
+
+# Use a valid OpenRouter model ID (see https://openrouter.ai/models)
+model: anthropic/claude-sonnet-4.5
+provider: openrouter
+max_iterations: 60
+
+# Custom rover tools (Python files with TOOL_SCHEMA and execute())
+custom_tools_dir: hermes_rover/tools
+
+# Skills (SKILL.md files)
+skills_dir: hermes_rover/skills
+
+# Persistent memory
+memory_enabled: true
+memory_dir: hermes_rover/memory
+
+# Context / system prompt (loaded by Hermes)
+context_files:
+  - hermes_rover/config/system_prompt.md
+  - hermes_rover/config/context.md

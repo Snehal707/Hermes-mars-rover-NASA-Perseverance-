@@ -1,0 +1,69 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+dashboard/node_modules/
+dashboard/.next/
+dashboard/next-env.d.ts
+*.tsbuildinfo
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+dashboard/.env.local
+dashboard/.env.*.local
+!dashboard/.env.local.example
+
+# Runtime / logs / data
+.logs/
+*.log
+.api.log
+*.pid
+*.tmp
+*.temp
+*.sqlite
+*.sqlite3
+*.db
+core
+core.*
+
+# Hermes runtime data
+.hermes/
+hermes_rover/memory/*.db
+reports/session_report_*.txt
+reports/*.pdf
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Internal planning artifacts
+cursorrules
+CURSOR_WORKFLOW_GUIDE.md
+HERMES_MARS_ROVER_BUILD_PLAN.md
+REMAINING_PHASES_HEADLESS.md

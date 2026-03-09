@@ -1,0 +1,53 @@
+[
+  {
+    "name": "Move Rover",
+    "description": "Send a text command to the rover",
+    "apple_watch_enabled": true,
+    "url": "https://YOUR_DOMAIN/command",
+    "method": "POST",
+    "body": { "text": "[Provided Input]" },
+    "actions": [
+      "Ask for Input (text, prompt: Command?)",
+      "Get Contents of URL",
+      "Get Dictionary Value key: response",
+      "Show Result"
+    ]
+  },
+  {
+    "name": "Rover Photo",
+    "description": "Take a photo with NavCam",
+    "apple_watch_enabled": true,
+    "url": "https://YOUR_DOMAIN/command",
+    "method": "POST",
+    "body": { "text": "take a photo with navcam" },
+    "actions": [
+      "Get Contents of URL",
+      "Show Result"
+    ]
+  },
+  {
+    "name": "Rover Status",
+    "description": "Get rover position and telemetry",
+    "apple_watch_enabled": true,
+    "url": "https://YOUR_DOMAIN/status",
+    "method": "GET",
+    "body": null,
+    "actions": [
+      "Get Contents of URL",
+      "Get Dictionary Value key: position",
+      "Show Result"
+    ]
+  },
+  {
+    "name": "Stop Rover",
+    "description": "Emergency stop the rover",
+    "apple_watch_enabled": true,
+    "url": "https://YOUR_DOMAIN/command",
+    "method": "POST",
+    "body": { "text": "emergency stop" },
+    "actions": [
+      "Get Contents of URL",
+      "Show Result"
+    ]
+  }
+]
