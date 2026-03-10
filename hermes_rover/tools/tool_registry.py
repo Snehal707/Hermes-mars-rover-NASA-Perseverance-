@@ -1,6 +1,6 @@
 """
 Registry of Hermes rover tools: drive_rover, read_sensors, navigate_to,
-check_hazards, rover_memory, generate_report.
+check_hazards, rover_memory, generate_report, capture_camera_image.
 Provides get_all_tools() and get_tool_executor(name).
 """
 from . import drive_tool
@@ -9,8 +9,9 @@ from . import navigate_tool
 from . import hazard_tool
 from . import memory_tool
 from . import report_tool
+from . import camera_tool
 
-_TOOL_MODULES = [drive_tool, sensor_tool, navigate_tool, hazard_tool, memory_tool, report_tool]
+_TOOL_MODULES = [drive_tool, sensor_tool, navigate_tool, hazard_tool, memory_tool, report_tool, camera_tool]
 _NAME_TO_MODULE = {m.TOOL_SCHEMA["name"]: m for m in _TOOL_MODULES}
 
 

@@ -11,7 +11,7 @@ if str(ROOT) not in os.environ.get("PYTHONPATH", ""):
     import sys
     sys.path.insert(0, str(ROOT))
 
-from hermes_rover.tools import drive_tool, sensor_tool, navigate_tool
+from hermes_rover.tools import drive_tool, sensor_tool, navigate_tool, camera_tool
 from hermes_rover.memory import memory_manager
 from hermes_rover.memory.session_logger import SessionLogger
 
@@ -42,6 +42,16 @@ def test_navigate_tool_schema():
     assert "target_y" in props
     assert "target_x" in schema["parameters"]["required"]
     assert "target_y" in schema["parameters"]["required"]
+
+
+def test_camera_tool_schema():
+    schema = camera_tool.TOOL_SCHEMA
+    assert schema["name"] == "capture_camera_image"
+    props = schema["parameters"]["properties"]
+    assert "camera" in props
+    assert "output_dir" in props
+    assert "filename" in props
+    assert "camera" in schema["parameters"]["required"]
 
 
 def test_memory_manager_init():

@@ -1,10 +1,10 @@
 # Hermes Mars Rover — Project Context
 
-- **This is a Gazebo Sim simulation running headless** (no GUI, no cameras in the control loop).
+- **This is a Gazebo Sim rover simulation**. Camera topics are available even when the sim is headless.
 
-- **Available tools:** drive_rover, read_sensors, navigate_to.
+- **Available tools:** drive_rover, read_sensors, navigate_to, capture_camera_image.
 
-- **Sensor data comes from gz topic commands** — tools use subprocess calls to `gz topic` (no ROS 2 / rclpy). Odometry: `/rover/odometry`. IMU: `/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu`. LIDAR: `/rover/lidar`.
+- **Sensor data comes from gz topic commands** — tools use subprocess calls to `gz topic` (no ROS 2 / rclpy). Odometry: `/rover/odometry`. IMU: `/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu`. LIDAR: `/rover/lidar`. Cameras: `/rover/mastcam`, `/rover/navcam_left`, `/rover/hazcam_front`, `/rover/hazcam_rear`.
 
 - **All actions should be logged for session reports** — what the rover did, when, and why. Prefer short, structured summaries.
 
@@ -17,4 +17,5 @@
 - Never claim a file/report was sent unless the messaging tool result confirms success.
 - If a command exits non-zero, treat it as failure and report it; do not continue as if successful.
 - For Telegram PDF delivery, first call `GET /report/pdf/save` to obtain a persistent absolute path in `~/.hermes/document_cache`, then use `send_message` with `MEDIA:/absolute/path/to/report.pdf`.
+- For Telegram image delivery, first call `capture_camera_image`, then use `send_message` with the returned `MEDIA:/absolute/path/to/image`.
 - Prefer project/API report generation paths over ad-hoc inline Python scripts.

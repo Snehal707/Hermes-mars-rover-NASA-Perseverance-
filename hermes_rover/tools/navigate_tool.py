@@ -29,6 +29,8 @@ LINEAR_STEP = 0.3
 HAZARD_LIDAR_MIN = 1.0
 HAZARD_TILT_RAD = 0.4
 PUBLISH_HZ = 10.0
+YAW_ALIGN_TOL = 0.25  # radians (~14 degrees)
+YAW_TURN_RATE = 0.4  # rad/s
 
 
 def _read_topic(topic: str, timeout_sec: float = 3) -> str:
@@ -55,6 +57,25 @@ def _parse_position_from_odom(raw: str):
     return (x, y)
 
 
+def _parse_yaw_from_odom(raw: str) -> float:
+    """Approximate yaw from quaternion orientation in odometry."""
+    orient = re.search(
+        r"orientation\s*\{[^}]*x:\s*([\d.e+-]+)[^}]*y:\s*([\d.e+-]+)[^}]*z:\s*([\d.e+-]+)[^}]*w:\s*([\d.e+-]+)",
+        raw,
+        re.I | re.S,
+    )
+    if not orient:
+        return 0.0
+    x = float(orient.group(1))
+    y = float(orient.group(2))
+    z = float(orient.group(3))
+    w = float(orient.group(4))
+    # Yaw from quaternion (x, y, z, w)
+    siny_cosp = 2.0 * (w * z + x * y)
+    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
+    return math.atan2(siny_cosp, cosy_cosp)
+
+
 def _publish_twist(linear_x: float, angular_z: float) -> None:
     payload = f"linear: {{x: {linear_x}, y: 0, z: 0}}, angular: {{x: 0, y: 0, z: {angular_z}}}"
     subprocess.run(
@@ -78,6 +99,26 @@ async def _publish_stop_burst() -> None:
     for _ in range(3):
         _publish_twist(0.0, 0.0)
         await asyncio.sleep(0.05)
+
+
+async def _align_yaw_toward_target(x: float, y: float, target_x: float, target_y: float) -> None:
+    """Rotate in place until rover faces the target within tolerance."""
+    dx = target_x - x
+    dy = target_y - y
+    if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+        return
+    desired_yaw = math.atan2(dy, dx)
+
+    raw_odom = _read_topic(ODOM_TOPIC)
+    current_yaw = _parse_yaw_from_odom(raw_odom)
+    diff = (desired_yaw - current_yaw + math.pi) % (2 * math.pi) - math.pi
+    if abs(diff) <= YAW_ALIGN_TOL:
+        return
+
+    direction = 1.0 if diff > 0 else -1.0
+    duration = min(4.0, abs(diff) / max(YAW_TURN_RATE, 1e-3))
+    await _publish_for_duration(0.0, direction * YAW_TURN_RATE, duration, PUBLISH_HZ)
+    await _publish_stop_burst()
 
 
 def _hazard_from_lidar(raw: str) -> bool:
@@ -116,6 +157,7 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
         steps = 0
         max_steps = max(50, int(dist / (LINEAR_STEP * STEP_DURATION)) + 5)
         while dist > ARRIVAL_DIST and steps < max_steps:
+            await _align_yaw_toward_target(x, y, target_x, target_y)
             await _publish_for_duration(LINEAR_STEP, 0.0, STEP_DURATION, PUBLISH_HZ)
             await _publish_stop_burst()
             await asyncio.sleep(0.15)

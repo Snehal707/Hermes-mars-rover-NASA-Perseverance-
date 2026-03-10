@@ -1,0 +1,223 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="mars_surface">
+
+    <!-- Mars gravity: 3.721 m/s^2 -->
+    <gravity>0 0 -3.721</gravity>
+
+    <!-- Mars atmosphere (thin CO2) -->
+    <atmosphere type="adiabatic">
+      <temperature>210</temperature>
+      <pressure>636</pressure>
+    </atmosphere>
+
+    <!-- Physics engine -->
+    <physics name="1ms" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Core simulation systems -->
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-websocket-server-system"
+            name="gz::sim::systems::WebsocketServer">
+      <port>9002</port>
+      <publication_hz>30</publication_hz>
+      <max_connections>-1</max_connections>
+    </plugin>
+    <plugin filename="gz-sim-sensors-system"
+            name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+            name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+
+    <!-- Mars sky / scene -->
+    <scene>
+      <ambient>0.6 0.4 0.3 1.0</ambient>
+      <background>0.76 0.55 0.38 1.0</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- Sun (dimmer than Earth, Mars is farther) -->
+    <light type="directional" name="mars_sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>0.9 0.7 0.5 1</diffuse>
+      <specular>0.3 0.2 0.1 1</specular>
+      <direction>-0.5 0.5 -1.0</direction>
+    </light>
+
+    <!-- Ground plane -->
+    <model name="mars_ground">
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="ground_collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>0.8</mu>
+                <mu2>0.8</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="ground_visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.6 0.3 0.15 1</ambient>
+            <diffuse>0.7 0.35 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Rocks / obstacles -->
+    <model name="rock_1">
+      <static>true</static>
+      <pose>5 3 0.3 0 0 0.5</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><sphere><radius>0.6</radius></sphere></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><sphere><radius>0.6</radius></sphere></geometry>
+          <material>
+            <ambient>0.4 0.25 0.15 1</ambient>
+            <diffuse>0.5 0.3 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="rock_2">
+      <static>true</static>
+      <pose>-8 5 0.15 0.1 0.1 1.2</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><box><size>1.5 0.8 0.5</size></box></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><box><size>1.5 0.8 0.5</size></box></geometry>
+          <material>
+            <ambient>0.35 0.2 0.12 1</ambient>
+            <diffuse>0.45 0.28 0.16 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="rock_3">
+      <static>true</static>
+      <pose>12 -4 0.25 0 0 0.3</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><sphere><radius>0.4</radius></sphere></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><sphere><radius>0.4</radius></sphere></geometry>
+          <material>
+            <ambient>0.45 0.28 0.16 1</ambient>
+            <diffuse>0.55 0.32 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="rock_4">
+      <static>true</static>
+      <pose>-3 -6 0.2 0.05 0.05 0.8</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><box><size>0.9 0.6 0.4</size></box></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><box><size>0.9 0.6 0.4</size></box></geometry>
+          <material>
+            <ambient>0.38 0.22 0.14 1</ambient>
+            <diffuse>0.48 0.3 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="rock_5">
+      <static>true</static>
+      <pose>7 7 0.35 0 0 1.0</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><sphere><radius>0.5</radius></sphere></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><sphere><radius>0.5</radius></sphere></geometry>
+          <material>
+            <ambient>0.42 0.26 0.15 1</ambient>
+            <diffuse>0.52 0.32 0.19 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="rock_6">
+      <static>true</static>
+      <pose>15 2 0.18 0 0 0.6</pose>
+      <link name="rock_link">
+        <collision name="rock_col">
+          <geometry><box><size>1.2 0.7 0.35</size></box></geometry>
+        </collision>
+        <visual name="rock_vis">
+          <geometry><box><size>1.2 0.7 0.35</size></box></geometry>
+          <material>
+            <ambient>0.4 0.24 0.14 1</ambient>
+            <diffuse>0.5 0.3 0.17 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Cliff / drop-off hazard at x=20 -->
+    <model name="cliff_edge">
+      <static>true</static>
+      <pose>20 0 -3 0 0 0</pose>
+      <link name="cliff_link">
+        <collision name="cliff_col">
+          <geometry><box><size>40 10 6</size></box></geometry>
+        </collision>
+        <visual name="cliff_vis">
+          <geometry><box><size>40 10 6</size></box></geometry>
+          <material>
+            <ambient>0.5 0.28 0.15 1</ambient>
+            <diffuse>0.55 0.32 0.18 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Include the Perseverance rover -->
+    <include>
+      <uri>model://perseverance</uri>
+      <name>perseverance</name>
+      <pose>0 0 0.5 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>
+

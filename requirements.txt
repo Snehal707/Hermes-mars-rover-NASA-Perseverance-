@@ -7,6 +7,7 @@ python-multipart>=0.0.9
 
 # Telegram bot (Phase 4)
 python-telegram-bot>=20.0
+Pillow>=10.0.0
 
 # Tests and HTTP client
 httpx>=0.24.0
