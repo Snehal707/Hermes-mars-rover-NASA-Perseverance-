@@ -329,39 +329,39 @@ Because Hermes processes **text** (whether typed or from voice-to-text), voice a
 
 ## High-Level Architecture
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                     USER INTERFACES                    │
-│  Voice Client  │  Telegram Bot  │  CLI  │  Apple Watch │
-└────────┬───────┴───────┬────────┴───┬───┴──────────────┘
-         │               │            │
-         └───────────────▼────────────┘
-                  Hermes Gateway
-                         │
-              ┌──────────▼──────────┐
-              │   Hermes Mission     │
-              │   Agent (AI Core)    │
-              │  mission_agent.py    │
-              └──────────┬──────────┘
-                         │  Tools + Skills + Memory
-              ┌──────────▼──────────┐
-              │   FastAPI Rover API  │
-              │     api/main.py      │
-              │       :8000          │
-              └──────────┬──────────┘
-                         │
-              ┌──────────▼──────────┐
-              │  WebSocket Bridge   │
-              │       bridge/       │
-              │       :8765         │
-              └──────────┬──────────┘
-                         │
-         ┌───────────────▼───────────────┐
-         │    Gazebo Simulation           │
-         │  NASA Perseverance Model       │
-         │  Mars Physics (−3.72 m/s²)    │
-         │  IMU · LIDAR · Cameras · Odom │
-         └───────────────────────────────┘
+```mermaid
+flowchart LR
+  %% CONTROL / AI PLANE
+  subgraph controlPlane [Control / AI Plane]
+    userInterfaces["User Interfaces<br/>(CLI / Telegram / Voice / Watch)"]
+    gateway["Hermes Gateway"]
+    missionAgent["Hermes Mission Agent<br/>(mission_agent.py)"]
+    roverTools["Rover Tools<br/>(navigate_to, drive_rover, read_sensors,<br/>check_hazards, capture_camera_image,<br/>rover_memory, generate_report, send_message)"]
+    fastapiApi["FastAPI Rover API<br/>(api/main.py :8000)"]
+    bridgeService["WebSocket Bridge<br/>(bridge/ :8765)"]
+
+    userInterfaces --> gateway
+    gateway --> missionAgent
+    missionAgent --> roverTools
+    roverTools --> fastapiApi
+    fastapiApi --> bridgeService
+  end
+
+  %% SIMULATION / PHYSICS PLANE
+  subgraph simulationPlane [Simulation / Physics Plane]
+    gazeboWorld["Gazebo World<br/>(mars_terrain[_websocket].sdf)"]
+    perseveranceModel["Perseverance Rover Model<br/>(simulation/models/perseverance)"]
+    sensors["Sensors<br/>(IMU, Odometry, LIDAR,<br/>NavCam, MastCam, HazCam,<br/>Contact)"]
+    websocketViz["Websocket Visualization<br/>(port 9002)"]
+
+    gazeboWorld --> perseveranceModel
+    perseveranceModel --> sensors
+    gazeboWorld --> websocketViz
+  end
+
+  %% CROSS-PLANE LINKS
+  bridgeService --> gazeboWorld
+  sensors --> fastapiApi
 ```
 
 ---
