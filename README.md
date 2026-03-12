@@ -1,6 +1,6 @@
 # 🚀 HERMES — AI-Powered Mars Rover (NASA Perseverance Simulation)
 
-> An autonomous, AI-native Mars rover agent built on the **real NASA Perseverance model**, running physics-accurate Martian simulation via **Gazebo**, controlled through natural language, voice, and Telegram — with full memory, self-improvement, and PDF reporting.
+> Built on top of [NousResearch's open-source Hermes Agent framework](https://github.com/NousResearch/hermes-agent), this project is an autonomous, AI-native Mars rover agent using the **real NASA Perseverance model**. It runs physics-accurate Martian simulation via **Gazebo**, is controlled through natural language, voice, and Telegram, and features full memory, self-improvement, and PDF reporting.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
