@@ -1,15 +1,19 @@
-# 🚀 HERMES — AI-Powered Mars Rover (NASA Perseverance Simulation)
+# HERMES — AI-Powered Mars Rover (NASA Perseverance Simulation)
 
-> Built on top of [NousResearch's open-source Hermes Agent framework](https://github.com/NousResearch/hermes-agent), this project is an autonomous, AI-native Mars rover agent using the **real NASA Perseverance model**. It runs physics-accurate Martian simulation via **Gazebo**, is controlled through natural language, voice, and Telegram, and features full memory, self-improvement, and PDF reporting.
+Built on [NousResearch's Hermes Agent](https://github.com/NousResearch/hermes-agent), 
+Hermes is an autonomous AI rover agent running the real NASA Perseverance model in a 
+physics-accurate Martian simulation via Gazebo. Controlled through natural language, 
+voice, and Telegram — with persistent memory, self-improvement, and PDF mission reporting.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Gazebo](https://img.shields.io/badge/Simulation-Gazebo%20Harmonic-orange)](https://gazebosim.org)
-[![FastAPI](https://img.shields.io/badge/API-FastAPI-green)](https://fastapi.tiangolo.com)
+[![Simulation](https://img.shields.io/badge/Simulation-Gazebo%20Harmonic-orange)](https://gazebosim.org)
+[![API](https://img.shields.io/badge/API-FastAPI-green)](https://fastapi.tiangolo.com)
+[![Built on](https://img.shields.io/badge/Built%20on-Hermes%20Agent-blueviolet)](https://github.com/NousResearch/hermes-agent)
 
 ---
 
-## 🔭 What is Hermes?
+## What is Hermes?
 
 **Hermes** is a fully autonomous, AI-driven Mars rover agent that:
 
@@ -22,7 +26,7 @@
 
 ---
 
-## 🛸 Rover Model — NASA Perseverance
+## Rover Model — NASA Perseverance
 
 Hermes uses the **real NASA Perseverance rover model**, not primitive shapes or placeholders.
 
@@ -48,7 +52,7 @@ The Perseverance model’s `model.sdf` defines:
   - `/rover/lidar`
   - `/rover/contact`
 
-### 🪐 Mars Physics Simulation
+### Mars Physics Simulation
 
 The simulation enforces accurate Martian physical constants:
 
@@ -73,7 +77,7 @@ Every physics tick runs under Martian gravity, so the rover’s motion, suspensi
 
 ---
 
-## 🧠 Autonomous Missions & Decision-Making
+## Autonomous Missions & Decision-Making
 
 Hermes is not a remote-controlled robot — it is an **AI agent that thinks, plans, and acts on its own**.
 
@@ -122,7 +126,7 @@ Hermes **autonomously**:
 
 ---
 
-## 🎯 Skills — Structured Decision Playbooks
+## Skills — Structured Decision Playbooks
 
 Skills in `hermes_rover/skills/` are **pre-built decision strategies** Hermes applies when facing specific situations:
 
@@ -163,7 +167,7 @@ Automated image delivery:
 
 ---
 
-## 🧩 Memory System — Learning from Past Missions
+## Memory System — Learning from Past Missions
 
 Hermes has **persistent structured memory** in `hermes_rover/memory/rover_memory.db` (SQLite).
 
@@ -215,7 +219,7 @@ This means **every mission can make future missions safer** — the rover accumu
 
 ---
 
-## 🔄 Self-Improvement Loop
+## Self-Improvement Loop
 
 ```
 Mission Execution
@@ -238,7 +242,7 @@ The system prompt and context instruct Hermes to:
 
 ---
 
-## 📄 PDF Reports via Telegram
+## PDF Reports via Telegram
 
 ### Generating a PDF
 
@@ -274,7 +278,7 @@ The Hermes gateway/Telegram adapter reads the `MEDIA:` tag and sends the actual 
 
 ---
 
-## 🎙️ Voice Command Control via Telegram
+## Voice Command Control via Telegram
 
 You can control Hermes entirely with your voice through Telegram.
 
@@ -323,7 +327,7 @@ Because Hermes processes **text** (whether typed or from voice-to-text), voice a
 
 ---
 
-## 🏗️ High-Level Architecture
+## High-Level Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
@@ -362,7 +366,7 @@ Because Hermes processes **text** (whether typed or from voice-to-text), voice a
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 Hermes-mars-rover-NASA-Perseverance-/
@@ -394,7 +398,7 @@ Hermes-mars-rover-NASA-Perseverance-/
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### 1. Clone & Install
 
@@ -435,7 +439,7 @@ cd dashboard && npm run dev        # Next.js dashboard
 
 ---
 
-## 🔑 Environment Variables
+## Environment Variables
 
 Key variables in `.env.example`:
 
@@ -468,7 +472,7 @@ Never commit your `.env` file or real secrets.
 
 ---
 
-## 🌐 Core API Reference
+## Core API Reference
 
 Some key FastAPI endpoints (see `api/main.py` for full list):
 
@@ -488,7 +492,7 @@ Interactive docs: `http://localhost:8000/docs`
 
 ---
 
-## 🔒 Security
+## Security
 
 - **Never** commit `.env` or real API keys/tokens.
 - Use `ROVER_API_KEY` to gate write operations in production-like deployments.
@@ -497,7 +501,7 @@ Interactive docs: `http://localhost:8000/docs`
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ```bash
 python3 -m pytest tests/ -q
@@ -507,13 +511,13 @@ Covers: navigation tools, sensors, memory, and schema tests for tools like `capt
 
 ---
 
-## 📜 License
+## License
 
 MIT — see [LICENSE](LICENSE)
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
