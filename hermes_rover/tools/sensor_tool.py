@@ -2,11 +2,18 @@
 Headless sensor tool: read IMU, odometry, lidar via gz topic -e -t TOPIC -n 1.
 """
 import json
-import subprocess
+
+from hermes_rover.telemetry import (
+    IMU_TOPIC,
+    LIDAR_TOPIC,
+    ODOM_TOPIC,
+    get_telemetry_snapshot,
+    read_topic,
+)
 
 TOOL_SCHEMA = {
     "name": "read_sensors",
-    "description": "Read rover sensors (imu, odometry, lidar) via gz topic (headless).",
+    "description": "Read rover sensors (imu, odometry, lidar) with bridge-backed telemetry when available.",
     "parameters": {
         "type": "object",
         "properties": {
@@ -20,29 +27,20 @@ TOOL_SCHEMA = {
     },
 }
 
+
 SENSOR_TOPICS = {
-    "odometry": "/rover/odometry",
-    "imu": "/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu",
-    "lidar": "/rover/lidar",
+    "odometry": ODOM_TOPIC,
+    "imu": IMU_TOPIC,
+    "lidar": LIDAR_TOPIC,
 }
-
-
-def _read_topic(topic: str, timeout_sec: float = 3) -> str:
-    result = subprocess.run(
-        ["gz", "topic", "-e", "-t", topic, "-n", "1"],
-        capture_output=True,
-        text=True,
-        timeout=timeout_sec,
-    )
-    if result.returncode != 0:
-        return result.stderr or result.stdout or ""
-    return result.stdout or ""
 
 
 async def execute(*, sensors: list, **_) -> str:
     if not sensors:
         return json.dumps({"status": "ok", "readings": {}})
     readings = {}
+    snapshot = get_telemetry_snapshot(prefer_bridge=True)
+    source = str(snapshot.get("source") or "gz")
     for s in sensors:
         name = s if isinstance(s, str) else str(s)
         name = name.lower().strip()
@@ -50,11 +48,37 @@ async def execute(*, sensors: list, **_) -> str:
             readings[name] = {"error": "unknown sensor"}
             continue
         topic = SENSOR_TOPICS[name]
-        try:
-            raw = _read_topic(topic)
-            readings[name] = {"topic": topic, "raw": raw.strip()[:2000]}
-        except subprocess.TimeoutExpired:
-            readings[name] = {"topic": topic, "error": "timeout"}
-        except Exception as e:
-            readings[name] = {"topic": topic, "error": str(e)}
-    return json.dumps({"status": "ok", "readings": readings})
+        if name == "odometry":
+            readings[name] = {
+                "topic": topic,
+                "source": source,
+                "parsed": {
+                    "position": snapshot.get("position", {}),
+                    "velocity": snapshot.get("velocity", {}),
+                },
+            }
+            continue
+        if name == "imu":
+            readings[name] = {
+                "topic": topic,
+                "source": source,
+                "parsed": {
+                    "orientation": snapshot.get("orientation", {}),
+                    "hazard_detected": bool(snapshot.get("hazard_detected", False)),
+                },
+            }
+            continue
+
+        raw = read_topic(topic)
+        readings[name] = {
+            "topic": topic,
+            "source": "gz",
+            "raw": raw.strip()[:2000],
+        }
+
+    return json.dumps({
+        "status": "ok",
+        "telemetry_source": source,
+        "telemetry": snapshot,
+        "readings": readings,
+    })

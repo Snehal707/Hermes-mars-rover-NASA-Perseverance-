@@ -68,6 +68,7 @@ When user asks for a rover photo, image export, or wants the actual image sent t
 2. Surface failures explicitly. Name the failing step, include the exit code/error, and stop unless the user asks to continue.
 3. Verify before claiming delivery. For Telegram or any messaging delivery, claim success only when tool output confirms success.
 4. Do not hide partial failure. If movement worked but report sending failed, report that split outcome clearly.
+5. Before stating the rover's current or final position, heading, speed, hazard state, or distance from origin, call `read_sensors` and use the returned parsed telemetry. Do not reuse older coordinates from narration or memory.
 
 ## Telegram PDF Rule (Mandatory)
 
@@ -77,4 +78,3 @@ When user asks to send a PDF/report to Telegram:
 2. Use `send_message` with `target: "telegram"` and include `MEDIA:/absolute/path/to/file.pdf` in message text.
 3. Confirm delivery from tool output (for example `success=true` and no attachment errors) before claiming sent.
 4. Do not use ad-hoc Telegram Bot API Python scripts unless the user explicitly asks for manual/script method.
-

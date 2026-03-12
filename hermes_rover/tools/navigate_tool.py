@@ -8,6 +8,8 @@ import re
 import subprocess
 import time
 
+from hermes_rover.telemetry import LIDAR_TOPIC, distance_from_origin, get_telemetry_snapshot, read_topic
+
 TOOL_SCHEMA = {
     "name": "navigate_to",
     "description": "Navigate rover to target x,y using odometry and drive in steps; stop if hazard detected.",
@@ -21,59 +23,26 @@ TOOL_SCHEMA = {
     },
 }
 
-ODOM_TOPIC = "/rover/odometry"
 CMD_VEL_TOPIC = "/rover/cmd_vel"
-STEP_DURATION = 2.0
 ARRIVAL_DIST = 0.5
-LINEAR_STEP = 0.3
+TURN_TOLERANCE_RAD = 0.18
+LINEAR_STEP = 0.45
+LINEAR_STEP_DURATION = 1.0
+TURN_RATE = 0.35
+TURN_STEP_MAX_DURATION = 1.2
+POST_MOVE_SETTLE_SEC = 0.55
 HAZARD_LIDAR_MIN = 1.0
-HAZARD_TILT_RAD = 0.4
 PUBLISH_HZ = 10.0
-YAW_ALIGN_TOL = 0.25  # radians (~14 degrees)
-YAW_TURN_RATE = 0.4  # rad/s
+# Rover forward axis in the current Gazebo model points along -Y when yaw == 0.
+FORWARD_AXIS_OFFSET_RAD = -math.pi / 2.0
 
 
-def _read_topic(topic: str, timeout_sec: float = 3) -> str:
-    result = subprocess.run(
-        ["gz", "topic", "-e", "-t", topic, "-n", "1"],
-        capture_output=True,
-        text=True,
-        timeout=timeout_sec,
-    )
-    return (result.stdout or "").strip() if result.returncode == 0 else ""
-
-
-def _parse_position_from_odom(raw: str):
-    x, y = 0.0, 0.0
-    pos = re.search(r"position\s*\{\s*x:\s*([\d.e+-]+)\s*y:\s*([\d.e+-]+)", raw, re.I | re.S)
-    if pos:
-        x, y = float(pos.group(1)), float(pos.group(2))
-    else:
-        for m in re.finditer(r"x:\s*([\d.e+-]+)|y:\s*([\d.e+-]+)", raw):
-            if m.group(1):
-                x = float(m.group(1))
-            if m.group(2):
-                y = float(m.group(2))
-    return (x, y)
-
-
-def _parse_yaw_from_odom(raw: str) -> float:
-    """Approximate yaw from quaternion orientation in odometry."""
-    orient = re.search(
-        r"orientation\s*\{[^}]*x:\s*([\d.e+-]+)[^}]*y:\s*([\d.e+-]+)[^}]*z:\s*([\d.e+-]+)[^}]*w:\s*([\d.e+-]+)",
-        raw,
-        re.I | re.S,
-    )
-    if not orient:
-        return 0.0
-    x = float(orient.group(1))
-    y = float(orient.group(2))
-    z = float(orient.group(3))
-    w = float(orient.group(4))
-    # Yaw from quaternion (x, y, z, w)
-    siny_cosp = 2.0 * (w * z + x * y)
-    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-    return math.atan2(siny_cosp, cosy_cosp)
+def _normalize_angle(angle: float) -> float:
+    while angle > math.pi:
+        angle -= 2 * math.pi
+    while angle < -math.pi:
+        angle += 2 * math.pi
+    return angle
 
 
 def _publish_twist(linear_x: float, angular_z: float) -> None:
@@ -101,26 +70,6 @@ async def _publish_stop_burst() -> None:
         await asyncio.sleep(0.05)
 
 
-async def _align_yaw_toward_target(x: float, y: float, target_x: float, target_y: float) -> None:
-    """Rotate in place until rover faces the target within tolerance."""
-    dx = target_x - x
-    dy = target_y - y
-    if abs(dx) < 1e-6 and abs(dy) < 1e-6:
-        return
-    desired_yaw = math.atan2(dy, dx)
-
-    raw_odom = _read_topic(ODOM_TOPIC)
-    current_yaw = _parse_yaw_from_odom(raw_odom)
-    diff = (desired_yaw - current_yaw + math.pi) % (2 * math.pi) - math.pi
-    if abs(diff) <= YAW_ALIGN_TOL:
-        return
-
-    direction = 1.0 if diff > 0 else -1.0
-    duration = min(4.0, abs(diff) / max(YAW_TURN_RATE, 1e-3))
-    await _publish_for_duration(0.0, direction * YAW_TURN_RATE, duration, PUBLISH_HZ)
-    await _publish_stop_burst()
-
-
 def _hazard_from_lidar(raw: str) -> bool:
     ranges = re.findall(r"range\s*:\s*([\d.e+-]+)|ranges\s*\[([\d.e+-]+)\]", raw)
     if not ranges:
@@ -132,19 +81,23 @@ def _hazard_from_lidar(raw: str) -> bool:
     return False
 
 
-def _hazard_from_imu(raw: str) -> bool:
-    orient = re.search(r"orientation\s*\{[^}]*x:\s*([\d.e+-]+)[^}]*y:\s*([\d.e+-]+)[^}]*z:\s*([\d.e+-]+)", raw, re.I | re.S)
-    if not orient:
-        return False
-    x, y, z = float(orient.group(1)), float(orient.group(2)), float(orient.group(3))
-    tilt = math.acos(max(-1, min(1, 2 * (x * x + y * y + z * z) - 1)))
-    return tilt > HAZARD_TILT_RAD
+def _position_xy(snapshot: dict) -> tuple[float, float]:
+    position = snapshot.get("position", {}) if isinstance(snapshot, dict) else {}
+    return (
+        float(position.get("x", 0.0)),
+        float(position.get("y", 0.0)),
+    )
+
+
+def _yaw(snapshot: dict) -> float:
+    orientation = snapshot.get("orientation", {}) if isinstance(snapshot, dict) else {}
+    return float(orientation.get("yaw", 0.0))
 
 
 async def execute(*, target_x: float, target_y: float, **_) -> str:
     try:
-        raw_odom = _read_topic(ODOM_TOPIC)
-        x, y = _parse_position_from_odom(raw_odom)
+        snapshot = get_telemetry_snapshot(prefer_bridge=True)
+        x, y = _position_xy(snapshot)
         dist = math.hypot(target_x - x, target_y - y)
         if dist <= ARRIVAL_DIST:
             return json.dumps({
@@ -152,30 +105,53 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
                 "message": "already at target",
                 "position": {"x": round(x, 3), "y": round(y, 3)},
                 "target": {"x": target_x, "y": target_y},
+                "telemetry_source": snapshot.get("source", "gz"),
+                "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
             })
 
         steps = 0
-        max_steps = max(50, int(dist / (LINEAR_STEP * STEP_DURATION)) + 5)
+        max_steps = max(80, int(dist / max(0.1, LINEAR_STEP * LINEAR_STEP_DURATION)) * 4 + 8)
         while dist > ARRIVAL_DIST and steps < max_steps:
-            await _align_yaw_toward_target(x, y, target_x, target_y)
-            await _publish_for_duration(LINEAR_STEP, 0.0, STEP_DURATION, PUBLISH_HZ)
-            await _publish_stop_burst()
-            await asyncio.sleep(0.15)
+            snapshot = get_telemetry_snapshot(prefer_bridge=True)
+            x, y = _position_xy(snapshot)
+            current_yaw = _yaw(snapshot)
+            current_heading = _normalize_angle(current_yaw + FORWARD_AXIS_OFFSET_RAD)
+            target_heading = math.atan2(target_y - y, target_x - x)
+            heading_error = _normalize_angle(target_heading - current_heading)
 
-            raw_odom = _read_topic(ODOM_TOPIC)
-            x, y = _parse_position_from_odom(raw_odom)
+            if abs(heading_error) > TURN_TOLERANCE_RAD:
+                turn_duration = min(
+                    TURN_STEP_MAX_DURATION,
+                    max(0.25, abs(heading_error) / max(0.01, TURN_RATE)),
+                )
+                turn_rate = TURN_RATE if heading_error > 0 else -TURN_RATE
+                await _publish_for_duration(0.0, turn_rate, turn_duration, PUBLISH_HZ)
+                await _publish_stop_burst()
+                await asyncio.sleep(POST_MOVE_SETTLE_SEC)
+            else:
+                drive_duration = min(
+                    LINEAR_STEP_DURATION,
+                    max(0.3, dist / max(0.05, LINEAR_STEP)),
+                )
+                await _publish_for_duration(LINEAR_STEP, 0.0, drive_duration, PUBLISH_HZ)
+                await _publish_stop_burst()
+                await asyncio.sleep(POST_MOVE_SETTLE_SEC)
+
+            snapshot = get_telemetry_snapshot(prefer_bridge=True)
+            x, y = _position_xy(snapshot)
             dist = math.hypot(target_x - x, target_y - y)
 
-            imu_raw = _read_topic("/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu", timeout_sec=2)
-            if imu_raw and _hazard_from_imu(imu_raw):
+            if bool(snapshot.get("hazard_detected", False)):
                 return json.dumps({
                     "status": "hazard_stop",
                     "message": "tilt hazard",
                     "position": {"x": round(x, 3), "y": round(y, 3)},
                     "target": {"x": target_x, "y": target_y},
                     "steps": steps,
+                    "telemetry_source": snapshot.get("source", "gz"),
+                    "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
                 })
-            lidar_raw = _read_topic("/rover/lidar", timeout_sec=2)
+            lidar_raw = read_topic(LIDAR_TOPIC, timeout_sec=2)
             if lidar_raw and _hazard_from_lidar(lidar_raw):
                 return json.dumps({
                     "status": "hazard_stop",
@@ -183,15 +159,22 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
                     "position": {"x": round(x, 3), "y": round(y, 3)},
                     "target": {"x": target_x, "y": target_y},
                     "steps": steps,
+                    "telemetry_source": snapshot.get("source", "gz"),
+                    "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
                 })
             steps += 1
 
+        snapshot = get_telemetry_snapshot(prefer_bridge=True)
+        x, y = _position_xy(snapshot)
+        dist = math.hypot(target_x - x, target_y - y)
         return json.dumps({
             "status": "ok",
             "position": {"x": round(x, 3), "y": round(y, 3)},
             "target": {"x": target_x, "y": target_y},
             "distance_remaining": round(dist, 3),
             "steps": steps,
+            "telemetry_source": snapshot.get("source", "gz"),
+            "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
         })
     except subprocess.TimeoutExpired:
         return json.dumps({"status": "error", "message": "gz topic timeout"})

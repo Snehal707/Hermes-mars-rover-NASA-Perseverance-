@@ -47,7 +47,7 @@ def main():
     try:
         from hermes_rover.memory.session_logger import SessionLogger
 
-        session_logger = SessionLogger()
+        session_logger = SessionLogger(source="gateway", reuse_active=True, finalize_on_end=False)
         print(f"Gateway session started: {session_logger.session_id}")
     except Exception as e:
         print(f"Warning: gateway session logging unavailable ({e})")

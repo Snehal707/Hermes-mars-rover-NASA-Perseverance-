@@ -103,7 +103,59 @@ def _extract_position_tuple(status: dict | None) -> tuple[float, float, float] |
         return None
 
 
+def _active_live_session_record() -> dict | None:
+    record = memory_manager.get_active_live_session()
+    if record is not None:
+        return record
+    session_id = _live_mission.get("session_id")
+    if isinstance(session_id, str) and session_id:
+        return memory_manager.get_live_session(session_id)
+    return None
+
+
+def _sync_live_mission_from_record(record: dict | None) -> bool:
+    if not isinstance(record, dict):
+        return False
+    _live_mission["session_id"] = str(record.get("session_id") or "")
+    _live_mission["start_time"] = str(record.get("start_time") or "")
+    _live_mission["last_update"] = str(record.get("last_update") or _live_mission["start_time"] or "")
+    _live_mission["commands_sent"] = int(record.get("commands_sent") or 0)
+    _live_mission["distance_traveled"] = float(record.get("distance_traveled") or 0.0)
+    _live_mission["hazards_detected"] = int(record.get("hazards_detected") or 0)
+    _live_mission["last_hazard_state"] = False
+    last_position = record.get("last_position")
+    if isinstance(last_position, tuple) and len(last_position) == 3:
+        _live_mission["last_position"] = last_position
+    else:
+        _live_mission["last_position"] = None
+    return True
+
+
+def _persist_live_mission(source: str = "api") -> None:
+    if not _live_mission.get("session_id"):
+        return
+    memory_manager.update_live_session(
+        str(_live_mission["session_id"]),
+        start_time=str(_live_mission.get("start_time") or _now_iso()),
+        last_update=str(_live_mission.get("last_update") or _now_iso()),
+        commands_sent=int(_live_mission.get("commands_sent", 0)),
+        distance_traveled=float(_live_mission.get("distance_traveled", 0.0)),
+        hazards_detected=int(_live_mission.get("hazards_detected", 0)),
+        last_position=_live_mission.get("last_position"),
+        active=True,
+        source=source,
+    )
+
+
 def _reset_live_mission(initial_status: dict | None = None) -> None:
+    record = _active_live_session_record()
+    if _sync_live_mission_from_record(record):
+        if initial_status is not None:
+            _live_mission["last_position"] = _extract_position_tuple(initial_status)
+            _live_mission["last_update"] = _now_iso()
+            _persist_live_mission(source="api")
+        return
+
     _live_mission["session_id"] = str(uuid.uuid4())
     _live_mission["start_time"] = _now_iso()
     _live_mission["last_update"] = _live_mission["start_time"]
@@ -112,9 +164,21 @@ def _reset_live_mission(initial_status: dict | None = None) -> None:
     _live_mission["hazards_detected"] = 0
     _live_mission["last_hazard_state"] = False
     _live_mission["last_position"] = _extract_position_tuple(initial_status)
+    memory_manager.begin_live_session(
+        session_id=str(_live_mission["session_id"]),
+        start_time=str(_live_mission["start_time"]),
+        source="api",
+    )
+    _persist_live_mission(source="api")
 
 
 def _update_live_mission(status: dict | None = None, *, command_sent: bool = False) -> None:
+    current_session_id = str(_live_mission.get("session_id") or "")
+    if current_session_id:
+        current_record = memory_manager.get_live_session(current_session_id)
+        if current_record is not None and not bool(current_record.get("active")):
+            _live_mission["session_id"] = ""
+
     if not _live_mission.get("session_id"):
         _reset_live_mission(status)
 
@@ -138,11 +202,13 @@ def _update_live_mission(status: dict | None = None, *, command_sent: bool = Fal
         _live_mission["hazards_detected"] = int(_live_mission.get("hazards_detected", 0)) + 1
     _live_mission["last_hazard_state"] = hazard_now
     _live_mission["last_update"] = _now_iso()
+    _persist_live_mission(source="api")
 
 
 def _get_live_mission_snapshot() -> dict:
     if not _live_mission.get("session_id"):
-        _reset_live_mission(None)
+        if not _sync_live_mission_from_record(_active_live_session_record()):
+            _reset_live_mission(None)
     return {
         "session_id": _live_mission.get("session_id", ""),
         "start_time": _live_mission.get("start_time", ""),
@@ -255,6 +321,56 @@ def _parse_drive_command(text: str) -> dict | None:
         return {"linear": linear, "angular": 0.0, "duration": duration, "action": "move"}
 
     return None
+
+
+def _should_try_hermes(text: str) -> bool:
+    """
+    Route anything beyond a simple direct drive phrase through Hermes.
+    """
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+
+    complex_markers = (
+        "photo",
+        "picture",
+        "image",
+        "camera",
+        "mastcam",
+        "navcam",
+        "hazcam",
+        "scan",
+        "lidar",
+        "explore",
+        "autonomous",
+        "autonomously",
+        "survey",
+        "mission",
+        "hazard",
+        "terrain",
+        "report",
+        "summary",
+        "remember",
+        "learn",
+        "avoid",
+        "analyze",
+        "analyse",
+        "assess",
+        "waypoint",
+        "navigate",
+    )
+    if any(marker in t for marker in complex_markers):
+        return True
+
+    return _parse_drive_command(text) is None
+
+
+async def _run_hermes_command(text: str, user_id: str | None = None) -> dict | None:
+    try:
+        from hermes_rover.mission_agent import run_hermes_command
+    except Exception:
+        return None
+    return await run_hermes_command(text, user_id=user_id)
 
 
 async def _bridge_drive(linear: float, angular: float, duration: float) -> dict | None:
@@ -437,6 +553,24 @@ async def post_command(payload: dict):
         return {"response": msg, "status": "completed" if ok else "error"}
 
     parsed = _parse_drive_command(text)
+    hermes_result = None
+
+    if _should_try_hermes(text):
+        before_status = await _bridge_status()
+        if before_status is not None:
+            _update_live_mission(before_status)
+        hermes_result = await _run_hermes_command(text, user_id)
+        if hermes_result and hermes_result.get("status") in {"completed", "partial"} and hermes_result.get("response"):
+            status = await _bridge_status()
+            if status is not None:
+                _update_live_mission(status, command_sent=True)
+            else:
+                _update_live_mission(None, command_sent=True)
+            return {
+                "response": hermes_result["response"],
+                "status": hermes_result["status"],
+            }
+
     if parsed:
         before_status = await _bridge_status()
         if before_status is not None:
@@ -463,6 +597,12 @@ async def post_command(payload: dict):
         return {
             "response": "Drive command parsed, but bridge /drive is unreachable.",
             "status": "error",
+        }
+
+    if hermes_result:
+        return {
+            "response": hermes_result.get("response") or hermes_result.get("error") or "Hermes mission execution failed.",
+            "status": hermes_result.get("status", "error"),
         }
 
     return {
@@ -517,6 +657,18 @@ async def post_transcribe(audio: UploadFile = File(..., description="Audio file 
 async def get_sessions():
     """List recent sessions from rover memory DB."""
     sessions = memory_manager.get_sessions(limit=50)
+    live = _active_live_session_record()
+    if live is not None and not any((s.get("session_id") or "") == live.get("session_id") for s in sessions):
+        sessions = [{
+            "session_id": str(live.get("session_id") or ""),
+            "start_time": str(live.get("start_time") or ""),
+            "end_time": None,
+            "distance_traveled": float(live.get("distance_traveled") or 0.0),
+            "photos_taken": 0,
+            "hazards_encountered": int(live.get("hazards_detected") or 0),
+            "skills_used": "live",
+            "summary": "Live mission telemetry",
+        }, *sessions]
     return {"sessions": sessions}
 
 
@@ -548,7 +700,19 @@ async def get_session(session_id: str):
     ).fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Session not found")
+        live = memory_manager.get_live_session(session_id)
+        if live is None:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return {
+            "session_id": str(live.get("session_id") or ""),
+            "start_time": str(live.get("start_time") or ""),
+            "end_time": None,
+            "distance_traveled": float(live.get("distance_traveled") or 0.0),
+            "photos_taken": 0,
+            "hazards_encountered": int(live.get("hazards_detected") or 0),
+            "skills_used": str(live.get("source") or "live"),
+            "summary": "Live mission telemetry",
+        }
     return dict(row)
 
 
@@ -772,6 +936,7 @@ async def websocket_stream(websocket: WebSocket):
                     ) as resp:
                         if resp.status == 200:
                             data = await resp.json()
+                            _update_live_mission(data)
                             await websocket.send_json(data)
                         else:
                             await websocket.send_json({
@@ -796,4 +961,3 @@ async def websocket_stream(websocket: WebSocket):
         pass
     except Exception:
         pass
-

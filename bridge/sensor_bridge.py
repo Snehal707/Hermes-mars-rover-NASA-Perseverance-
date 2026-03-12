@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 ODOM_TOPIC = "/rover/odometry"
-IMU_TOPIC = "/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu"
+IMU_TOPIC = "/rover/imu"
 CMD_VEL_TOPIC = "/rover/cmd_vel"
 POLL_INTERVAL = 0.5
 HAZARD_TILT_RAD = 0.35

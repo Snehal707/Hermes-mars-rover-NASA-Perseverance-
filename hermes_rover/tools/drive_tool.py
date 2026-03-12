@@ -6,6 +6,8 @@ import json
 import subprocess
 import time
 
+from hermes_rover.telemetry import distance_from_origin, get_telemetry_snapshot
+
 TOOL_SCHEMA = {
     "name": "drive_rover",
     "description": "Drive the rover with given linear and angular speed for a duration (headless, via gz topic).",
@@ -64,12 +66,16 @@ async def execute(
         await asyncio.to_thread(_publish_for_duration, linear, angular, duration, 10.0)
         await asyncio.to_thread(_publish_stop_burst)
         distance_estimate = abs(linear) * duration * 0.5  # rough m at low speed
+        final_telemetry = get_telemetry_snapshot(prefer_bridge=True)
         return json.dumps({
             "status": "ok",
             "linear_speed": linear,
             "angular_speed": angular,
             "duration_s": duration,
             "distance_estimate_m": round(distance_estimate, 2),
+            "telemetry_source": final_telemetry.get("source", "gz"),
+            "position": final_telemetry.get("position", {}),
+            "distance_from_origin": round(distance_from_origin(final_telemetry.get("position")), 3),
         })
     except subprocess.TimeoutExpired:
         return json.dumps({"status": "error", "message": "gz topic timeout"})

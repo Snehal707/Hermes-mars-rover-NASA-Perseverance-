@@ -34,12 +34,64 @@ def test_command_endpoint(client):
     assert data.get("status") in ("completed", "processing", "error", "unsupported")
 
 
+def test_command_endpoint_routes_complex_mission_to_hermes(client, monkeypatch):
+    async def fake_bridge_status():
+        return {
+            "position": {"x": 0.0, "y": 0.0, "z": 0.0},
+            "orientation": {"roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+            "velocity": {"linear": 0.0, "angular": 0.0},
+            "hazard_detected": False,
+            "uptime_seconds": 1.0,
+            "sim_connected": True,
+        }
+
+    async def fake_hermes(text: str, user_id: str | None = None):
+        assert "explore" in text.lower()
+        assert user_id == "42"
+        return {
+            "response": "Hermes completed the autonomous exploration sweep.",
+            "status": "completed",
+            "completed": True,
+            "partial": False,
+        }
+
+    monkeypatch.setattr(api_main, "_bridge_status", fake_bridge_status)
+    monkeypatch.setattr(api_main, "_run_hermes_command", fake_hermes)
+
+    resp = client.post("/command", json={"text": "Explore the area autonomously.", "user_id": "42"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "completed"
+    assert "Hermes completed" in data["response"]
+
+
 def test_sessions_endpoint(client):
     resp = client.get("/sessions")
     assert resp.status_code == 200
     data = resp.json()
     assert "sessions" in data
     assert isinstance(data["sessions"], list)
+
+
+def test_sessions_endpoint_includes_active_live_session(client, monkeypatch):
+    monkeypatch.setattr(api_main.memory_manager, "get_sessions", lambda limit=50: [])
+    monkeypatch.setattr(
+        api_main.memory_manager,
+        "get_active_live_session",
+        lambda: {
+            "session_id": "live-session-1",
+            "start_time": "2026-03-12T12:00:00",
+            "distance_traveled": 1.75,
+            "hazards_detected": 2,
+        },
+    )
+
+    resp = client.get("/sessions")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["sessions"][0]["session_id"] == "live-session-1"
+    assert data["sessions"][0]["distance_traveled"] == pytest.approx(1.75)
+    assert data["sessions"][0]["hazards_encountered"] == 2
 
 
 def test_hazards_endpoint(client):

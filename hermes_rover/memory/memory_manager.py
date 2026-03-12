@@ -55,6 +55,19 @@ def init_db():
         last_used TEXT,
         source_session TEXT
     )""")
+    c.execute("""CREATE TABLE IF NOT EXISTS live_session_state (
+        session_id TEXT PRIMARY KEY,
+        start_time TEXT,
+        last_update TEXT,
+        commands_sent INTEGER DEFAULT 0,
+        distance_traveled REAL DEFAULT 0.0,
+        hazards_detected INTEGER DEFAULT 0,
+        last_position_x REAL,
+        last_position_y REAL,
+        last_position_z REAL,
+        active INTEGER DEFAULT 1,
+        source TEXT
+    )""")
     conn.commit()
     conn.close()
 
@@ -123,6 +136,139 @@ def get_sessions(limit: int = 50) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def begin_live_session(session_id: str, start_time: str, source: str = ""):
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    row = conn.execute(
+        "SELECT session_id FROM live_session_state WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()
+    if row:
+        conn.execute(
+            "UPDATE live_session_state SET start_time = COALESCE(start_time, ?), last_update = ?, active = 1, source = COALESCE(NULLIF(source, ''), ?) WHERE session_id = ?",
+            (start_time, start_time, source, session_id),
+        )
+    else:
+        conn.execute(
+            """INSERT INTO live_session_state (
+                session_id, start_time, last_update, commands_sent, distance_traveled,
+                hazards_detected, last_position_x, last_position_y, last_position_z,
+                active, source
+            ) VALUES (?, ?, ?, 0, 0.0, 0, NULL, NULL, NULL, 1, ?)""",
+            (session_id, start_time, start_time, source),
+        )
+    conn.commit()
+    conn.close()
+
+
+def update_live_session(
+    session_id: str,
+    *,
+    start_time: str | None = None,
+    last_update: str | None = None,
+    commands_sent: int | None = None,
+    distance_traveled: float | None = None,
+    hazards_detected: int | None = None,
+    last_position: tuple[float, float, float] | None = None,
+    active: bool | None = None,
+    source: str | None = None,
+):
+    init_db()
+    row = get_live_session(session_id)
+    if row is None:
+        begin_live_session(session_id, start_time or datetime.now().isoformat(), source=source or "")
+        row = get_live_session(session_id) or {}
+
+    values = {
+        "start_time": start_time if start_time is not None else row.get("start_time"),
+        "last_update": last_update if last_update is not None else row.get("last_update"),
+        "commands_sent": int(commands_sent) if commands_sent is not None else int(row.get("commands_sent") or 0),
+        "distance_traveled": float(distance_traveled) if distance_traveled is not None else float(row.get("distance_traveled") or 0.0),
+        "hazards_detected": int(hazards_detected) if hazards_detected is not None else int(row.get("hazards_detected") or 0),
+        "last_position_x": float(last_position[0]) if last_position is not None else row.get("last_position_x"),
+        "last_position_y": float(last_position[1]) if last_position is not None else row.get("last_position_y"),
+        "last_position_z": float(last_position[2]) if last_position is not None else row.get("last_position_z"),
+        "active": 1 if active is True else 0 if active is False else int(row.get("active") or 0),
+        "source": source if source is not None else row.get("source") or "",
+    }
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        """UPDATE live_session_state
+           SET start_time = ?, last_update = ?, commands_sent = ?, distance_traveled = ?,
+               hazards_detected = ?, last_position_x = ?, last_position_y = ?, last_position_z = ?,
+               active = ?, source = ?
+           WHERE session_id = ?""",
+        (
+            values["start_time"],
+            values["last_update"],
+            values["commands_sent"],
+            values["distance_traveled"],
+            values["hazards_detected"],
+            values["last_position_x"],
+            values["last_position_y"],
+            values["last_position_z"],
+            values["active"],
+            values["source"],
+            session_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_live_session(session_id: str) -> dict | None:
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT * FROM live_session_state WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    out = dict(row)
+    if any(out.get(key) is not None for key in ("last_position_x", "last_position_y", "last_position_z")):
+        out["last_position"] = (
+            float(out.get("last_position_x") or 0.0),
+            float(out.get("last_position_y") or 0.0),
+            float(out.get("last_position_z") or 0.0),
+        )
+    else:
+        out["last_position"] = None
+    out["active"] = bool(out.get("active"))
+    return out
+
+
+def get_active_live_session() -> dict | None:
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        """SELECT * FROM live_session_state
+           WHERE active = 1
+           ORDER BY COALESCE(last_update, start_time) DESC, start_time DESC
+           LIMIT 1"""
+    ).fetchone()
+    conn.close()
+    if not row:
+        return None
+    return get_live_session(str(dict(row).get("session_id")))
+
+
+def finish_live_session(session_id: str, end_time: str | None = None):
+    init_db()
+    when = end_time or datetime.now().isoformat()
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute(
+        "UPDATE live_session_state SET active = 0, last_update = ? WHERE session_id = ?",
+        (when, session_id),
+    )
+    conn.commit()
+    conn.close()
 
 
 def log_learned_behavior(trigger: str, action: str, session_id: str = ""):

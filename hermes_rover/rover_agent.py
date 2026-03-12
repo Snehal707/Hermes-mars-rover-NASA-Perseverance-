@@ -54,7 +54,7 @@ def main():
     try:
         from hermes_rover.memory.session_logger import SessionLogger
 
-        session_logger = SessionLogger()
+        session_logger = SessionLogger(source="cli", reuse_active=True, finalize_on_end=True)
         print(f"Session started: {session_logger.session_id}")
     except Exception as e:
         print(f"Warning: session logging unavailable ({e})")

@@ -4,7 +4,7 @@
 
 - **Available tools:** drive_rover, read_sensors, navigate_to, capture_camera_image.
 
-- **Sensor data comes from gz topic commands** — tools use subprocess calls to `gz topic` (no ROS 2 / rclpy). Odometry: `/rover/odometry`. IMU: `/world/mars_surface/model/perseverance/link/base_link/sensor/imu/imu`. LIDAR: `/rover/lidar`. Cameras: `/rover/mastcam`, `/rover/navcam_left`, `/rover/hazcam_front`, `/rover/hazcam_rear`.
+- **Sensor data comes from gz topic commands** — tools use subprocess calls to `gz topic` (no ROS 2 / rclpy). Odometry: `/rover/odometry`. IMU: `/rover/imu`. LIDAR: `/rover/lidar`. Cameras: `/rover/mastcam`, `/rover/navcam_left`, `/rover/hazcam_front`, `/rover/hazcam_rear`.
 
 - **All actions should be logged for session reports** — what the rover did, when, and why. Prefer short, structured summaries.
 
