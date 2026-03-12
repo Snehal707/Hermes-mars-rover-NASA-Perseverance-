@@ -1,289 +1,522 @@
-# HERMES Mars Rover – NASA Perseverance Simulation
+# 🚀 HERMES — AI-Powered Mars Rover (NASA Perseverance Simulation)
 
-AI‑powered Mars rover project built on **Hermes Agent**, **Gazebo**, **FastAPI**, **Telegram**, and a **Next.js** dashboard – now using the **real NASA Perseverance mesh/model** instead of primitive shapes.
+> An autonomous, AI-native Mars rover agent built on the **real NASA Perseverance model**, running physics-accurate Martian simulation via **Gazebo**, controlled through natural language, voice, and Telegram — with full memory, self-improvement, and PDF reporting.
 
-The system lets you talk to the rover in natural language (CLI / Telegram / voice), run a headless physics simulation on a GPU VPS, and receive rich media (images, PDFs) back in Telegram.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Gazebo](https://img.shields.io/badge/Simulation-Gazebo%20Harmonic-orange)](https://gazebosim.org)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-green)](https://fastapi.tiangolo.com)
 
 ---
 
-## High‑Level Architecture
+## 🔭 What is Hermes?
 
-### Components
+**Hermes** is a fully autonomous, AI-driven Mars rover agent that:
 
-- `simulation/` – Gazebo worlds and the Perseverance rover model (SDF + meshes).
-- `bridge/` – WebSocket bridge between Gazebo topics and the HTTP API (`:8765`).
-- `api/` – FastAPI rover API for commands, telemetry, reports, and camera export (`:8000`).
-- `hermes_rover/` – Hermes mission agent, tools (navigation, sensors, camera, memory).
-- `hermes-agent/` – Upstream Hermes Agent framework and gateway integration.
-- `telegram_bot/` – Telegram bot entrypoint (optional custom bot).
-- `dashboard/` – Next.js mission dashboard (`:3000`) for telemetry and reports.
-- `scripts/` – Startup / orchestration scripts (local + VPS).
-- `docs/` – Deployment and operations docs (including GPU VPS guide).
+- Simulates the **real NASA Perseverance rover** (DAE mesh model) in a physics-accurate Martian environment
+- Runs **autonomous missions** driven by natural language via CLI, Telegram, or voice
+- Makes **real-time decisions** using tools, skills, and structured memory
+- **Learns from past missions** — avoids previously discovered hazards, improves behavior over time
+- Delivers **PDF mission reports and camera images** as real Telegram attachments
+- Can be fully controlled by **voice commands** through Telegram
 
-### Data / Control Flow
+---
 
-```mermaid
-flowchart LR
-  user["User"] --> telegram["Telegram Bot"]
-  user --> voiceClient["Voice Client"]
+## 🛸 Rover Model — NASA Perseverance
 
-  telegram --> hermesGateway["Hermes Gateway"]
-  voiceClient --> hermesGateway
+Hermes uses the **real NASA Perseverance rover model**, not primitive shapes or placeholders.
 
-  hermesGateway --> hermesCLI["Hermes Agent / Mission Agent"]
-  hermesCLI --> api["FastAPI Rover API (:8000)"]
+| Property | Detail |
+|----------|--------|
+| **Model** | NASA Perseverance Mars Rover |
+| **Source** | `simulation/models/perseverance/` — DAE mesh + SDF |
+| **Simulation Engine** | Gazebo Harmonic / Fortress |
+| **Sensor Suite** | IMU, Odometry, NavCam, MastCam, HazCam (front/rear), SuperCam LIDAR, Contact sensor |
+| **Drive System** | 6-wheel rocker-bogie diff-drive (via Gazebo diff-drive plugin) |
 
-  api --> bridge["ROS/Gazebo Bridge (:8765)"]
-  bridge --> sim["Gazebo Perseverance Simulation"]
+The Perseverance model’s `model.sdf` defines:
 
-  sim --> sensors["IMU / Odometry / Lidar / Camera"]
-  sensors --> api
+- A realistic mass/inertia for the chassis (~1025 kg).
+- Six wheels with correct radii, friction, and contact surfaces.
+- A diff-drive plugin that converts `/rover/cmd_vel` into wheel motions and publishes odometry on `/rover/odometry`.
+- Sensors publishing to:
+  - `/rover/imu`
+  - `/rover/navcam_left`
+  - `/rover/mastcam`
+  - `/rover/hazcam_front`
+  - `/rover/hazcam_rear`
+  - `/rover/lidar`
+  - `/rover/contact`
 
-  api --> storage["Reports / PDFs / Images / Rover Memory"]
-  storage --> hermesCLI
-  storage --> telegram
+### 🪐 Mars Physics Simulation
+
+The simulation enforces accurate Martian physical constants:
+
+| Physics Parameter | Mars Value | Effect in Simulation |
+|-------------------|------------|----------------------|
+| **Gravity** | −3.72 m/s² (38% of Earth) | Rover dynamics, jump/fall behavior |
+| **Terrain friction** | Low (loose regolith-like) | Wheel slip, traction limits |
+| **Slope response** | Rocker-bogie geometry | Passive suspension over rocks |
+| **Atmosphere** | Thin CO₂ atmosphere model | No significant aerodynamic drag; storms modeled logically via skills |
+| **Inertia** | True Perseverance mass/geometry | Authentic momentum, tipping behavior |
+| **LIDAR range** | Calibrated for Martian distances | Hazard detection at correct scales |
+| **IMU tilt thresholds** | Safety-tuned for Mars gravity | Auto-stop on dangerous inclines |
+
+World files like `simulation/worlds/mars_terrain_websocket.sdf` define:
+
+- Mars gravity (`<gravity>0 0 -3.721</gravity>`).
+- Thin atmosphere.
+- A large Mars terrain plane with rocks and a modeled cliff/drop-off region.
+- Websocket visualization plugin (port `9002`) for headless remote viewing.
+
+Every physics tick runs under Martian gravity, so the rover’s motion, suspension behavior, and hazard responses are physically consistent with Mars.
+
+---
+
+## 🧠 Autonomous Missions & Decision-Making
+
+Hermes is not a remote-controlled robot — it is an **AI agent that thinks, plans, and acts on its own**.
+
+### How Autonomous Missions Work
+
+```
+User (natural language) ──▶ Hermes Mission Agent (mission_agent.py)
+                                    │
+                          ┌─────────▼──────────┐
+                          │  Mission Planning   │
+                          │  (breaks into steps)│
+                          └─────────┬──────────┘
+                                    │
+             ┌──────────────────────┼───────────────────────┐
+             ▼                      ▼                       ▼
+      navigate_to()          read_sensors()        check_hazards()
+      drive_rover()          capture_camera()      rover_memory()
+      generate_report()      send_message()        [+ more tools]
 ```
 
-Key points:
+You send Hermes a high-level command like:
 
-- Hermes Agent uses **tools** in `hermes_rover/tools/` to move the rover, read sensors, capture camera images, and query structured rover memory.
-- When reports or images are generated, Hermes includes `MEDIA:/absolute/path/to/file` in its responses so the Hermes gateway/Telegram bot can send **real attachments**.
-- The simulation uses the **real Perseverance model** from `simulation/models/perseverance/` with the DAE mesh in `resources/`.
+> *"Explore the nearby crater, avoid all hazards, take photos, and send me a PDF report on Telegram."*
+
+Hermes **autonomously**:
+1. Plans the mission into steps.
+2. Calls navigation tools to drive the rover.
+3. Continuously reads IMU/LIDAR/Odometry sensors.
+4. Queries memory for known hazard zones.
+5. Applies skills for terrain, obstacles, storms, cliffs.
+6. Captures and delivers images to Telegram.
+7. Generates and sends a PDF mission report.
+
+### Tools Available to Hermes
+
+| Tool | Purpose |
+|------|---------|
+| `navigate_to` | Drive to target coordinate using odometry + hazard checks |
+| `drive_rover` | Low-level velocity/heading commands (cmd_vel) |
+| `read_sensors` | IMU, odometry, LIDAR readings |
+| `check_hazards` | Real-time obstacle/cliff detection |
+| `capture_camera_image` | Take photo, save to disk, return absolute file path + MEDIA tag |
+| `generate_report` | Create structured mission report |
+| `rover_memory` | Query/save hazards, terrain, sessions, behaviors |
+| `send_message` | Deliver text/media (PDFs/images) to Telegram |
 
 ---
 
-## Prerequisites
+## 🎯 Skills — Structured Decision Playbooks
 
-You can run this in **Ubuntu** or **WSL2**. Recommended:
+Skills in `hermes_rover/skills/` are **pre-built decision strategies** Hermes applies when facing specific situations:
 
-- Python **3.10+** (3.11 recommended)
-- Node.js **18+**
-- Gazebo Harmonic / Fortress (or Jetty, depending on distro)
-- ROS 2 Humble / Jazzy (for bridge-based setups)
-- A Telegram account and bot token from BotFather
-- (Optional) GPU VPS with NVIDIA drivers + container runtime for remote rendering
+### `terrain_assessment`
+Adjusts rover speed based on IMU tilt readings:
+- **Flat** (< ~0.2 rad / 11°) → normal speed.
+- **Mild slope** (~0.2–0.35 rad) → reduced speed.
+- **Steep** (~0.35–0.52 rad) → crawl speed + heightened alert.
+- **Dangerous** (> ~0.52 rad) → emergency stop, consider reversing.
+
+### `obstacle_avoidance`
+Reacts to LIDAR proximity data:
+- Near obstacle detected → slow, assess, reroute.
+- Blocked path → attempt alternate heading / waypoints.
+- Repeated blockage → log hazard, request new mission plan.
+
+### `storm_protocol`
+Dust-storm emergency sequence:
+1. Immediately halt all motion.
+2. Log storm event with coordinates and timestamp.
+3. Alert user via Telegram.
+4. Monitor storm-related signals periodically.
+5. Resume mission once conditions are safe.
+
+### `cliff_protocol`
+Cliff/drop-off detection response:
+1. Emergency stop before edge.
+2. Reverse to safe distance.
+3. Mark location as cliff hazard in memory.
+4. Replan route around the hazard.
+
+### `camera_telegram_delivery`
+Automated image delivery:
+1. Capture image with `capture_camera_image` → save to media cache.
+2. Extract absolute file path and `MEDIA:/absolute/path/image.jpg` tag.
+3. Use `send_message` with that tag and a caption.
+4. Hermes gateway sends file as a real Telegram photo attachment.
 
 ---
 
-## Environment Configuration
+## 🧩 Memory System — Learning from Past Missions
 
-1. Copy the example env:
+Hermes has **persistent structured memory** in `hermes_rover/memory/rover_memory.db` (SQLite).
 
-```bash
-cp .env.example .env
+### What Gets Remembered
+
+| Memory Type | Stored Data |
+|-------------|-------------|
+| **Hazard Map** | Coordinates, hazard type, severity, description, session ID |
+| **Terrain Logs** | Position, terrain type, traversability score, notes |
+| **Session Logs** | Distance covered, photos taken, hazards found, skills used, summary |
+| **Learned Behaviors** | Trigger → action pairs with success/failure counters |
+
+### How Hermes Uses Memory
+
+Before entering a zone:
+
+```python
+rover_memory.check_area(x, y, radius=5.0)
 ```
 
-2. Edit `.env` and fill in:
+After finding something new:
 
-- **LLM / reasoning**: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `HERMES_REASONING_EFFORT`.
-- **Voice tools**: `VOICE_TOOLS_OPENAI_KEY` (or rely on `OPENAI_API_KEY`).
-- **Telegram**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`, `TELEGRAM_HOME_CHANNEL`.
-- **API / bridge**: `API_URL`, `BRIDGE_URL`, `ROVER_API_KEY`.
-- **Supabase / dashboard**: `SUPABASE_URL`, `SUPABASE_KEY` (optional).
-- **External tools**: `FIRECRAWL_API_KEY`, `FAL_KEY`, `ELEVENLABS_API_KEY` (optional).
-- **Simulation / ROS**: `GZ_SIM_RESOURCE_PATH`, `ROS_DOMAIN_ID`, `HERMES_SIM_WORLD`, `HERMES_SIM_HEADLESS_RENDERING`, `HERMES_SIM_REALTIME`, `HERMES_SIM_VERBOSITY`.
-- **Tunnel**: `TUNNEL_DOMAIN` for remote/Apple‑Watch access.
+```python
+rover_memory.save_discovery(x, y, hazard_type="cliff", severity="high")
+```
 
-Never commit your `.env` file or real secrets.
+After a successful strategy:
+
+```python
+rover_memory.save_behavior(trigger="steep_slope", behavior_action="reduce_speed_50pct")
+```
+
+On later missions, Hermes can call:
+
+```python
+rover_memory.get_behaviors()
+```
+
+to recall learned behaviors and apply them again.
+
+### Avoiding Dangerous Zones from Past Missions
+
+When planning routes, Hermes can:
+1. Query the hazard map near the planned path (`check_area`).
+2. Treat any known hazards as exclusion zones.
+3. Replan navigation to route around them.
+
+This means **every mission can make future missions safer** — the rover accumulates a growing map of danger zones it can avoid.
 
 ---
 
-## Installation
+## 🔄 Self-Improvement Loop
 
-From the repo root:
+```
+Mission Execution
+      │
+      ▼
+Encounter Problem
+      │
+      ▼
+Solve It + Log What Worked  ──▶  save_behavior(trigger, action)
+      │
+      ▼
+Next Time Similar Situation ──▶  get_behaviors() → apply best known action
+```
+
+The system prompt and context instruct Hermes to:
+
+- Log what went wrong during missions.
+- Create or update SKILL.md files when it solves a new class of problem.
+- Track which behaviors worked and reuse them in future missions.
+
+---
+
+## 📄 PDF Reports via Telegram
+
+### Generating a PDF
+
+Hermes calls the FastAPI endpoint:
+
+```http
+GET /report/pdf/save
+```
+
+This uses `fpdf2` to render a formatted PDF containing:
+
+- Mission summary (date, duration, distance).
+- Hazards encountered (with coordinates and severity).
+- Skills applied.
+- Terrain traversability notes.
+- Session statistics and conclusions.
+
+The PDF is saved to `~/.hermes/document_cache/` or `reports/`, and the **absolute path is returned**.
+
+### Sending to Telegram
+
+Hermes includes the path in its reply as:
+
+```text
+MEDIA:/home/user/.hermes/document_cache/mission_report_2026.pdf
+```
+
+The Hermes gateway/Telegram adapter reads the `MEDIA:` tag and sends the actual **PDF file as a Telegram attachment** — not just text.
+
+**Example command:**
+
+> *"Run a full mission and send me the detailed research report as a PDF on Telegram."*
+
+---
+
+## 🎙️ Voice Command Control via Telegram
+
+You can control Hermes entirely with your voice through Telegram.
+
+### Voice Command Flow
+
+```
+Your Voice
+    │
+    ▼
+Voice Client (mic listener)
+    │   OpenAI-compatible STT API
+    ▼
+Transcribed Text
+    │
+    ▼
+Hermes Gateway (Telegram)
+    │
+    ▼
+Hermes Mission Agent
+    │
+    ▼
+Tools / Skills / Rover Actions
+```
+
+### Setup
+
+Configure in `.env`:
+
+```env
+VOICE_TOOLS_OPENAI_KEY=your_key_here
+# or reuse:
+OPENAI_API_KEY=your_key_here
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+### Example Voice Commands
+
+| You Say | Hermes Does |
+|---------|-------------|
+| *"Hermes, explore the nearby crater and avoid cliffs."* | Plans + executes full exploration mission. |
+| *"Hermes, send me a photo of the terrain ahead."* | Captures camera image, sends to Telegram. |
+| *"Hermes, run a full mission and send me the PDF report."* | Completes mission + delivers PDF attachment. |
+| *"Hermes, return to the lander avoiding all known danger zones."* | Plans safe return path using hazard memory. |
+
+Because Hermes processes **text** (whether typed or from voice-to-text), voice and text commands are **equally powerful**.
+
+---
+
+## 🏗️ High-Level Architecture
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                     USER INTERFACES                    │
+│  Voice Client  │  Telegram Bot  │  CLI  │  Apple Watch │
+└────────┬───────┴───────┬────────┴───┬───┴──────────────┘
+         │               │            │
+         └───────────────▼────────────┘
+                  Hermes Gateway
+                         │
+              ┌──────────▼──────────┐
+              │   Hermes Mission     │
+              │   Agent (AI Core)    │
+              │  mission_agent.py    │
+              └──────────┬──────────┘
+                         │  Tools + Skills + Memory
+              ┌──────────▼──────────┐
+              │   FastAPI Rover API  │
+              │     api/main.py      │
+              │       :8000          │
+              └──────────┬──────────┘
+                         │
+              ┌──────────▼──────────┐
+              │  WebSocket Bridge   │
+              │       bridge/       │
+              │       :8765         │
+              └──────────┬──────────┘
+                         │
+         ┌───────────────▼───────────────┐
+         │    Gazebo Simulation           │
+         │  NASA Perseverance Model       │
+         │  Mars Physics (−3.72 m/s²)    │
+         │  IMU · LIDAR · Cameras · Odom │
+         └───────────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+Hermes-mars-rover-NASA-Perseverance-/
+├── simulation/                  # Gazebo worlds + Perseverance model (SDF + DAE mesh)
+├── bridge/                      # WebSocket bridge: Gazebo ↔ HTTP API (:8765)
+├── api/                         # FastAPI rover API (:8000) — commands, telemetry, PDF
+├── hermes_rover/
+│   ├── tools/                   # navigate_to, drive_rover, sensors, camera, memory, reports
+│   ├── skills/                  # terrain_assessment, obstacle_avoidance, storm/cliff/camera protocols
+│   ├── memory/
+│   │   ├── memory_manager.py    # Hazard map, terrain logs, session logs, behaviors
+│   │   └── rover_memory.db      # Persistent SQLite database
+│   ├── mission_agent.py         # Autonomous mission planner + executor
+│   └── config/
+│       ├── system_prompt.md     # Hermes AI persona + instructions
+│       └── context.md           # Tools/skills context injection
+├── hermes-agent/                # Upstream Hermes Agent framework + gateway
+├── telegram_bot/                # Telegram bot entrypoint
+├── dashboard/                   # Next.js mission dashboard (:3000)
+├── apple_watch/                 # Apple Watch control interface
+├── reports/                     # Generated PDF mission reports
+├── docs/                        # Deployment guides (local + GPU VPS)
+├── scripts/                     # Startup scripts (start_all.sh, start_sim.sh, etc.)
+├── tests/                       # Pytest test suite
+├── .env.example                 # Environment variable template
+├── requirements.txt             # Python dependencies
+└── README.md
+```
+
+---
+
+## ⚡ Quick Start
+
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/Snehal707/Hermes-mars-rover-NASA-Perseverance-.git
 cd Hermes-mars-rover-NASA-Perseverance-
 
 python3 -m venv .venv
-source .venv/bin/activate    # On Windows/WSL: source .venv/bin/activate
+source .venv/bin/activate
 pip install -r requirements.txt
+
+cd dashboard && npm install && cd ..
 ```
 
-Install dashboard dependencies:
+### 2. Configure Environment
 
 ```bash
-cd dashboard
-npm install
-cd ..
+cp .env.example .env
+# Edit .env — fill in LLM keys, Telegram token, API URLs, etc.
 ```
 
----
-
-## Running Locally (Full Stack)
-
-1. **Start Gazebo simulation** (GUI on your machine):
-
-```bash
-bash scripts/start_sim.sh
-```
-
-2. **Start the bridge** (exposes sensors/cmd_vel via WebSocket/HTTP):
-
-```bash
-bash scripts/start_bridge.sh
-```
-
-3. **Start the FastAPI rover API**:
-
-```bash
-bash scripts/start_api.sh
-```
-
-4. **Start Hermes + gateway**:
-
-```bash
-bash scripts/start_gateway_pdf.sh   # Hermes Gateway (Telegram)
-bash scripts/start_hermes.sh        # Hermes CLI / mission agent
-```
-
-5. **Start the dashboard**:
-
-```bash
-cd dashboard
-npm run dev
-```
-
-Alternatively, you can use a single orchestrator:
+### 3. Start Everything
 
 ```bash
 bash scripts/start_all.sh
 ```
 
----
-
-## Headless Sim & GPU VPS Deployment
-
-For running on a remote GPU VPS (no local GUI):
-
-- Use a Gazebo world like `simulation/worlds/mars_terrain_websocket.sdf` configured for headless rendering.
-- Set in `.env`:
-  - `HERMES_SIM_SERVER_ONLY=true`
-  - `HERMES_SIM_HEADLESS_RENDERING=true`
-  - `HERMES_SIM_REALTIME=true`
-- Use the VPS scripts (see `docs/GPU_VPS_DEPLOYMENT.md`):
-  - `scripts/start_sim_vps.sh` – start headless simulation/bridge.
-  - `scripts/start_all_vps.sh` – start sim, API, Hermes, and gateway together.
-
-These scripts are designed to be run via SSH on your VPS. You can then control the rover from your laptop or phone using the Hermes CLI and Telegram.
-
----
-
-## Hermes CLI Usage
-
-From the repo (with `.venv` active and services running):
+Or step by step:
 
 ```bash
-bash scripts/start_hermes.sh
+bash scripts/start_sim.sh          # Gazebo simulation
+bash scripts/start_bridge.sh       # WebSocket bridge
+bash scripts/start_api.sh          # FastAPI rover API
+bash scripts/start_gateway_pdf.sh  # Hermes Gateway (Telegram)
+bash scripts/start_hermes.sh       # Hermes CLI / mission agent
+cd dashboard && npm run dev        # Next.js dashboard
 ```
 
-Example prompts:
+---
 
-- “Drive 5 meters forward, then stop and send me a status report.”
-- “Explore the nearest crater rim, avoid hazards, and summarize what you found.”
-- “Take a photo of the terrain ahead and send it to Telegram.”
-- “Run a full mission and then send me the detailed research report in PDF.”
+## 🔑 Environment Variables
 
-Hermes will call tools in `hermes_rover/tools/` (navigation, sensors, camera, memory) and may send media via `MEDIA:/absolute/path` tags that the gateway turns into real Telegram attachments.
+Key variables in `.env.example`:
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | Primary LLM reasoning via OpenRouter |
+| `OPENAI_API_KEY` | OpenAI / OpenAI-compatible API key (LLM/voice) |
+| `OPENAI_BASE_URL` | Base URL for OpenAI-compatible APIs |
+| `VOICE_TOOLS_OPENAI_KEY` | Dedicated key for voice commands (optional) |
+| `TELEGRAM_BOT_TOKEN` | BotFather token |
+| `TELEGRAM_ALLOWED_USERS` | Comma-separated Telegram user IDs |
+| `TELEGRAM_HOME_CHANNEL` | Home channel/chat for broadcasts |
+| `API_URL` | FastAPI URL (default: `http://localhost:8000`) |
+| `BRIDGE_URL` | Bridge URL (default: `http://localhost:8765`) |
+| `ROVER_API_KEY` | API authentication key |
+| `FIRECRAWL_API_KEY` | Firecrawl research helper (optional) |
+| `FAL_KEY` | Fal.ai media generation (optional) |
+| `ELEVENLABS_API_KEY` | TTS voice output (optional) |
+| `SUPABASE_URL` / `SUPABASE_KEY` | Dashboard persistence (optional) |
+| `GZ_SIM_RESOURCE_PATH` | Path to Gazebo simulation resources (`./simulation/models`) |
+| `ROS_DOMAIN_ID` | ROS 2 domain separation |
+| `HERMES_SIM_WORLD` | World file (e.g. `mars_terrain_websocket.sdf`) |
+| `HERMES_SIM_SERVER_ONLY` | `true` for server-only / headless |
+| `HERMES_SIM_HEADLESS_RENDERING` | `true` to enable headless camera rendering |
+| `HERMES_SIM_REALTIME` | Real-time factor toggle |
+| `HERMES_SIM_VERBOSITY` | Logging verbosity (0–4) |
+| `HERMES_REASONING_EFFORT` | LLM reasoning depth (`low`, `medium`, `high`) |
+
+Never commit your `.env` file or real secrets.
 
 ---
 
-## Telegram Control
-
-1. Create a bot with BotFather and set `TELEGRAM_BOT_TOKEN` in `.env`.
-2. Find your Telegram numeric user ID and set `TELEGRAM_ALLOWED_USERS`.
-3. Run the gateway / Telegram bot:
-
-```bash
-bash scripts/start_gateway_pdf.sh
-```
-
-Then talk to your bot, for example:
-
-- “Where is the rover right now?”
-- “Navigate to (3.0, -2.0) safely.”
-- “Send me the mission report in PDF.”
-- “Capture an image from the front camera and send it.”
-
-When a PDF or image is generated, Hermes includes `MEDIA:/absolute/path/to/file` in the message; the gateway uses this to send a **real file attachment** instead of plain text.
-
----
-
-## Voice Commands
-
-You can connect a voice client that:
-
-- Listens on your microphone.
-- Streams/transcribes speech via an OpenAI‑compatible API (`OPENAI_API_KEY` / `VOICE_TOOLS_OPENAI_KEY`).
-- Sends text commands into Hermes (CLI or gateway).
-
-Configure:
-
-- `VOICE_TOOLS_OPENAI_KEY` (or reuse `OPENAI_API_KEY`).
-- Any client‑side config referenced in your voice tooling.
-
-Then you can say:
-
-- “Hermes, explore the canyon and report hazards.”
-- “Hermes, park the rover near the lander and send a photo.”
-
----
-
-## Camera Image Capture
-
-The rover’s **camera tools**:
-
-- Capture images from the simulated Perseverance camera.
-- Save files to a document/media cache directory.
-- Return JSON with an **absolute file path**.
-
-Hermes is instructed (via `hermes_rover/config/system_prompt.md` and `context.md`) to:
-
-- Include `MEDIA:/absolute/path/to/image.png` in replies when camera capture succeeds.
-- Use Telegram / gateway to send the actual image to you.
-
----
-
-## Core API Endpoints
+## 🌐 Core API Reference
 
 Some key FastAPI endpoints (see `api/main.py` for full list):
 
-- `GET /status` – health and basic rover status.
-- `GET /telemetry` – current metrics/telemetry.
-- `POST /command` – high‑level command entrypoint.
-- `POST /drive` – low‑level drive command.
-- `GET /sessions` – rover mission sessions.
-- `GET /report` – text mission report.
-- `GET /report/pdf` – on‑demand PDF report.
-- `GET /report/pdf/save` – generate + persist PDF report and return file path.
-- `WS /ws/stream` – live telemetry and events.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/status` | GET | Health check + rover status |
+| `/telemetry` | GET | Live sensor telemetry |
+| `/command` | POST | High-level natural language command (if wired) |
+| `/drive` | POST | Low-level drive command |
+| `/sessions` | GET | All mission sessions |
+| `/report` | GET | Text mission report |
+| `/report/pdf` | GET | On-demand PDF (stream) |
+| `/report/pdf/save` | GET | Generate + persist PDF, return path |
+| `/ws/stream` | WS | Live telemetry WebSocket stream |
 
 Interactive docs: `http://localhost:8000/docs`
 
 ---
 
-## Testing
+## 🔒 Security
 
-Run tests from the repo root:
+- **Never** commit `.env` or real API keys/tokens.
+- Use `ROVER_API_KEY` to gate write operations in production-like deployments.
+- Restrict Telegram access with `TELEGRAM_ALLOWED_USERS`.
+- See `SECURITY.md` for full security guidelines.
+
+---
+
+## 🧪 Testing
 
 ```bash
 python3 -m pytest tests/ -q
 ```
 
-Tests cover core rover tools (navigation, sensors, memory) and will be extended to include camera and regression checks for API behavior.
+Covers: navigation tools, sensors, memory, and schema tests for tools like `capture_camera_image`; extend as needed for new behaviors.
 
 ---
 
-## Security Notes
+## 📜 License
 
-- **Never** commit your `.env` or real tokens.
-- Use `ROVER_API_KEY` to gate write operations in production‑like deployments.
-- Restrict Telegram access with `TELEGRAM_ALLOWED_USERS` and keep the bot token secret.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
-## License
+## 🤝 Contributing
 
-MIT – see `LICENSE`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
+---
+
+*Built with ❤️ by [@Snehal707](https://github.com/Snehal707) — Hermes: because even on Mars, the messenger always gets through.* 
