@@ -79,6 +79,7 @@ flowchart LR
     hazcam_r["/rover/hazcam_rear"]
     mastcam["/rover/mastcam"]
     lidar["/rover/lidar"]
+    contact["/rover/contact"]
     joints["/rover/joint_states"]
   end
   subgraph worlds [Worlds]
@@ -97,6 +98,7 @@ flowchart LR
   - HazCam rear: `/rover/hazcam_rear`
   - MastCam: `/rover/mastcam`
   - LIDAR: `/rover/lidar`
+  - Contact: `/rover/contact`
   - Joint states: `/rover/joint_states`
 - **Drive system:** Six-wheel diff-drive.
 - **Local/default world:** `simulation/worlds/mars_terrain.sdf`
@@ -147,6 +149,7 @@ This keeps the Hermes control loop unchanged while exposing Gazebo visualization
 
 ## Features
 
+- **Rover tools** — Hermes uses these tools: `drive_rover`, `read_sensors`, `navigate_to`, `check_hazards`, `rover_memory`, `generate_report`, `capture_camera_image`.
 - **Autonomous navigation** — Natural language commands via Hermes Agent
 - **Hazard detection** — Cliffs, obstacles, tilt; storm protocol
 - **Skill learning** — SKILL.md skills: cliff_protocol, obstacle_avoidance, self_improvement, storm_protocol, terrain_assessment
