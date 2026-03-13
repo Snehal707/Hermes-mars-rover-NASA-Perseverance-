@@ -62,6 +62,26 @@ AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the b
 
 ---
 
+## Rover Model
+
+The rover model is **Perseverance**.
+
+- **Model path:** `simulation/models/perseverance/`
+- **Description (from repo):** NASA Perseverance rover model with NavCam, HazCam, MastCam, SuperCam LIDAR, and diff-drive.
+- **Sensors / topics:**
+  - IMU: `/rover/imu`
+  - NavCam left: `/rover/navcam_left`
+  - HazCam front: `/rover/hazcam_front`
+  - HazCam rear: `/rover/hazcam_rear`
+  - MastCam: `/rover/mastcam`
+  - LIDAR: `/rover/lidar`
+  - Joint states: `/rover/joint_states`
+- **Drive system:** Six-wheel diff-drive.
+- **Local/default world:** `simulation/worlds/mars_terrain.sdf`
+- **Remote visual / websocket world:** `simulation/worlds/mars_terrain_websocket.sdf`
+
+---
+
 ## Quick Start
 
 1. **Clone** this repository
