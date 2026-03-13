@@ -6,9 +6,18 @@ export class WebSocketManager {
   private onMessageCallback: ((data: RoverTelemetry) => void) | null = null;
   private onStateCallback: ((connected: boolean) => void) | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private shouldReconnect = false;
 
   connect(url: string) {
+    this.shouldReconnect = true;
     this.url = url;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.close();
+    }
     this.ws = new WebSocket(url);
     this.ws.onopen = () => {
       this.onStateCallback?.(true);
@@ -24,7 +33,9 @@ export class WebSocketManager {
     this.ws.onclose = () => {
       this.ws = null;
       this.onStateCallback?.(false);
-      this.reconnectTimer = setTimeout(() => this.connect(this.url), 2000);
+      if (this.shouldReconnect) {
+        this.reconnectTimer = setTimeout(() => this.connect(this.url), 2000);
+      }
     };
     this.ws.onerror = () => {
       this.onStateCallback?.(false);
@@ -41,6 +52,7 @@ export class WebSocketManager {
   }
 
   disconnect() {
+    this.shouldReconnect = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

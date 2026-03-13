@@ -2,7 +2,9 @@
 Headless sensor bridge: polls gz topics (odometry, IMU) every 500ms, exposes HTTP API.
 No rclpy; subprocess gz topic only. Port 8765.
 """
+from concurrent.futures import ThreadPoolExecutor
 import math
+import os
 import re
 import subprocess
 import threading
@@ -15,9 +17,13 @@ from pydantic import BaseModel
 ODOM_TOPIC = "/rover/odometry"
 IMU_TOPIC = "/rover/imu"
 CMD_VEL_TOPIC = "/rover/cmd_vel"
-POLL_INTERVAL = 0.5
+WORLD_NAME = os.environ.get("HERMES_GZ_WORLD_NAME", "mars_surface")
+STATS_TOPIC = f"/world/{WORLD_NAME}/stats"
+POLL_INTERVAL = float(os.environ.get("HERMES_BRIDGE_POLL_INTERVAL_SEC", "0.5"))
 HAZARD_TILT_RAD = 0.35
-SIM_CONNECTED_GRACE_SEC = 2.5
+TOPIC_TIMEOUT_SEC = float(os.environ.get("HERMES_BRIDGE_TOPIC_TIMEOUT_SEC", "2.0"))
+SIM_CONNECTED_GRACE_SEC = float(os.environ.get("HERMES_BRIDGE_SIM_GRACE_SEC", "6.0"))
+_TOPIC_POOL = ThreadPoolExecutor(max_workers=3)
 
 _state_lock = threading.Lock()
 _state = {
@@ -32,7 +38,7 @@ _state = {
 }
 
 
-def _read_topic(topic: str, timeout_sec: float = 2) -> str:
+def _read_topic(topic: str, timeout_sec: float = TOPIC_TIMEOUT_SEC) -> str:
     try:
         result = subprocess.run(
             ["gz", "topic", "-e", "-t", topic, "-n", "1"],
@@ -133,31 +139,36 @@ def _publish_stop_burst() -> None:
         time.sleep(0.05)
 
 
-def _poller_loop() -> None:
-    while True:
-        now = time.monotonic()
-        any_ok = False
-        odom_raw = _read_topic(ODOM_TOPIC)
-        if odom_raw:
-            pos, vel = _parse_odom(odom_raw)
-            any_ok = True
-        imu_raw = _read_topic(IMU_TOPIC)
-        orient, hazard = _parse_imu(imu_raw)
-        if imu_raw:
-            any_ok = True
+def _poll_once() -> None:
+    odom_future = _TOPIC_POOL.submit(_read_topic, ODOM_TOPIC, TOPIC_TIMEOUT_SEC)
+    imu_future = _TOPIC_POOL.submit(_read_topic, IMU_TOPIC, TOPIC_TIMEOUT_SEC)
+    stats_future = _TOPIC_POOL.submit(_read_topic, STATS_TOPIC, TOPIC_TIMEOUT_SEC)
 
-        with _state_lock:
-            if odom_raw:
-                _state["position"] = pos
-                _state["velocity"] = vel
+    odom_raw = odom_future.result()
+    imu_raw = imu_future.result()
+    stats_raw = stats_future.result()
+    pos, vel = _parse_odom(odom_raw) if odom_raw else (None, None)
+    orient, hazard = _parse_imu(imu_raw)
+    any_ok = bool(odom_raw or imu_raw or stats_raw)
+    cycle_now = time.monotonic()
+
+    with _state_lock:
+        if pos is not None and vel is not None:
+            _state["position"] = pos
+            _state["velocity"] = vel
+        if imu_raw:
             _state["orientation"] = orient
             _state["hazard_detected"] = hazard
-            if _state["_start_time"] is not None:
-                _state["uptime_seconds"] = round(now - _state["_start_time"], 2)
-            if any_ok:
-                _state["_last_ok_time"] = now
-            _state["sim_connected"] = (now - _state["_last_ok_time"]) < SIM_CONNECTED_GRACE_SEC
+        if _state["_start_time"] is not None:
+            _state["uptime_seconds"] = round(cycle_now - _state["_start_time"], 2)
+        if any_ok:
+            _state["_last_ok_time"] = cycle_now
+        _state["sim_connected"] = (cycle_now - _state["_last_ok_time"]) < SIM_CONNECTED_GRACE_SEC
 
+
+def _poller_loop() -> None:
+    while True:
+        _poll_once()
         time.sleep(POLL_INTERVAL)
 
 

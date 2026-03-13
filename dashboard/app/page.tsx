@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { WebSocketManager } from "../lib/websocket";
-import { getHazards } from "../lib/api";
+import { getHazards, getStatus } from "../lib/api";
 import { getWsStreamUrl } from "../lib/config";
 import type { RoverTelemetry, Hazard } from "../lib/types";
 import MapView from "../components/MapView";
@@ -21,6 +21,19 @@ export default function Dashboard() {
   const wsRef = useRef<WebSocketManager | null>(null);
 
   useEffect(() => {
+    const pushPosition = (px: number, py: number) => {
+      setPositionHistory((prev) => {
+        const last = prev[prev.length - 1];
+        const same =
+          last !== undefined &&
+          Math.abs(last.x - px) < 1e-4 &&
+          Math.abs(last.y - py) < 1e-4;
+        if (same) return prev;
+        const next = [...prev, { x: px, y: py }];
+        return next.slice(-500);
+      });
+    };
+
     const ws = new WebSocketManager();
     wsRef.current = ws;
     ws.onState((connected) => setWsConnected(connected));
@@ -29,19 +42,19 @@ export default function Dashboard() {
       if (data.position) {
         const px = data.position?.x ?? 0;
         const py = data.position?.y ?? 0;
-        setPositionHistory((prev) => {
-          const last = prev[prev.length - 1];
-          const same =
-            last !== undefined &&
-            Math.abs(last.x - px) < 1e-4 &&
-            Math.abs(last.y - py) < 1e-4;
-          if (same) return prev;
-          const next = [...prev, { x: px, y: py }];
-          return next.slice(-500);
-        });
+        pushPosition(px, py);
       }
     });
     ws.connect(getWsStreamUrl());
+
+    getStatus()
+      .then((data) => {
+        setTelemetry(data);
+        if (data.position) {
+          pushPosition(data.position.x ?? 0, data.position.y ?? 0);
+        }
+      })
+      .catch(() => {});
 
     getHazards()
       .then((r) => setHazards(r.hazards))

@@ -4,6 +4,7 @@ Headless navigate tool: read odometry, drive in steps toward target, check senso
 import asyncio
 import json
 import math
+import os
 import re
 import subprocess
 import time
@@ -33,6 +34,9 @@ TURN_STEP_MAX_DURATION = 1.2
 POST_MOVE_SETTLE_SEC = 0.55
 HAZARD_LIDAR_MIN = 1.0
 PUBLISH_HZ = 10.0
+STALL_STEP_LIMIT = max(4, int(os.environ.get("HERMES_NAV_STALL_STEPS", "8")))
+STALL_PROGRESS_EPSILON = float(os.environ.get("HERMES_NAV_STALL_EPSILON_M", "0.08"))
+NAV_TIMEOUT_SEC = max(15.0, float(os.environ.get("HERMES_NAV_TIMEOUT_SEC", "120")))
 # Rover forward axis in the current Gazebo model points along -Y when yaw == 0.
 FORWARD_AXIS_OFFSET_RAD = -math.pi / 2.0
 
@@ -96,6 +100,7 @@ def _yaw(snapshot: dict) -> float:
 
 async def execute(*, target_x: float, target_y: float, **_) -> str:
     try:
+        started_at = time.monotonic()
         snapshot = get_telemetry_snapshot(prefer_bridge=True)
         x, y = _position_xy(snapshot)
         dist = math.hypot(target_x - x, target_y - y)
@@ -110,6 +115,8 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
             })
 
         steps = 0
+        best_dist = dist
+        stalled_steps = 0
         max_steps = max(80, int(dist / max(0.1, LINEAR_STEP * LINEAR_STEP_DURATION)) * 4 + 8)
         while dist > ARRIVAL_DIST and steps < max_steps:
             snapshot = get_telemetry_snapshot(prefer_bridge=True)
@@ -141,6 +148,12 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
             x, y = _position_xy(snapshot)
             dist = math.hypot(target_x - x, target_y - y)
 
+            if dist < (best_dist - STALL_PROGRESS_EPSILON):
+                best_dist = dist
+                stalled_steps = 0
+            else:
+                stalled_steps += 1
+
             if bool(snapshot.get("hazard_detected", False)):
                 return json.dumps({
                     "status": "hazard_stop",
@@ -159,6 +172,28 @@ async def execute(*, target_x: float, target_y: float, **_) -> str:
                     "position": {"x": round(x, 3), "y": round(y, 3)},
                     "target": {"x": target_x, "y": target_y},
                     "steps": steps,
+                    "telemetry_source": snapshot.get("source", "gz"),
+                    "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
+                })
+            if stalled_steps >= STALL_STEP_LIMIT:
+                return json.dumps({
+                    "status": "error",
+                    "message": "navigation stalled",
+                    "position": {"x": round(x, 3), "y": round(y, 3)},
+                    "target": {"x": target_x, "y": target_y},
+                    "steps": steps,
+                    "distance_remaining": round(dist, 3),
+                    "telemetry_source": snapshot.get("source", "gz"),
+                    "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
+                })
+            if (time.monotonic() - started_at) >= NAV_TIMEOUT_SEC:
+                return json.dumps({
+                    "status": "error",
+                    "message": "navigation timeout",
+                    "position": {"x": round(x, 3), "y": round(y, 3)},
+                    "target": {"x": target_x, "y": target_y},
+                    "steps": steps,
+                    "distance_remaining": round(dist, 3),
                     "telemetry_source": snapshot.get("source", "gz"),
                     "distance_from_origin": round(distance_from_origin(snapshot.get("position")), 3),
                 })

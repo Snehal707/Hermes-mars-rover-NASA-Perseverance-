@@ -9,6 +9,7 @@ import re
 import sqlite3
 import subprocess
 import tempfile
+import time
 import uuid
 from collections import deque
 from datetime import datetime
@@ -36,6 +37,8 @@ _storm_active: bool = False
 BRIDGE_URL = os.environ.get("BRIDGE_URL", "http://localhost:8765")
 ROOT = Path(os.environ.get("HERMES_PROJECT_ROOT", Path(__file__).resolve().parent.parent))
 SKILLS_DIR = ROOT / "hermes_rover" / "skills"
+WS_STREAM_INTERVAL_SEC = float(os.environ.get("HERMES_WS_STREAM_INTERVAL_SEC", "0.2"))
+WS_BRIDGE_STALE_GRACE_SEC = float(os.environ.get("HERMES_WS_BRIDGE_STALE_GRACE_SEC", "3.0"))
 
 _live_mission: dict = {
     "session_id": "",
@@ -365,12 +368,38 @@ def _should_try_hermes(text: str) -> bool:
     return _parse_drive_command(text) is None
 
 
-async def _run_hermes_command(text: str, user_id: str | None = None) -> dict | None:
+async def _run_hermes_command(
+    text: str,
+    user_id: str | None = None,
+    mission_context: dict | None = None,
+) -> dict | None:
     try:
         from hermes_rover.mission_agent import run_hermes_command
     except Exception:
         return None
-    return await run_hermes_command(text, user_id=user_id)
+    return await run_hermes_command(text, user_id=user_id, mission_context=mission_context)
+
+
+def _build_hermes_mission_context(text: str, telemetry: dict | None = None) -> dict:
+    live = _get_live_mission_snapshot()
+    lowered = (text or "").strip().lower()
+    intent = "general"
+    if "explore" in lowered or "autonomous" in lowered:
+        intent = "explore"
+    elif "navigate" in lowered or "waypoint" in lowered or "move to" in lowered:
+        intent = "navigate"
+    elif "avoid" in lowered or "hazard" in lowered or "obstacle" in lowered:
+        intent = "avoid"
+    elif "survey" in lowered or "scan" in lowered or "assess" in lowered:
+        intent = "survey"
+    hazard_flag = "hazard_unknown"
+    if isinstance(telemetry, dict):
+        hazard_flag = "hazard_on" if bool(telemetry.get("hazard_detected", False)) else "hazard_off"
+    return {
+        "session_id": str(live.get("session_id") or ""),
+        "telemetry": telemetry if isinstance(telemetry, dict) else None,
+        "context_signature": f"intent:{intent} | {hazard_flag}",
+    }
 
 
 async def _bridge_drive(linear: float, angular: float, duration: float) -> dict | None:
@@ -496,6 +525,44 @@ def _parse_skill_frontmatter(content: str) -> dict:
     return out
 
 
+def _default_telemetry_payload() -> dict:
+    return {
+        "position": {"x": 0, "y": 0, "z": 0},
+        "orientation": {"roll": 0, "pitch": 0, "yaw": 0},
+        "velocity": {"linear": 0, "angular": 0},
+        "hazard_detected": False,
+        "uptime_seconds": 0,
+        "sim_connected": False,
+    }
+
+
+def _fallback_telemetry_payload(last_payload: dict | None, *, sim_connected: bool | None = None) -> dict:
+    payload = dict(last_payload) if isinstance(last_payload, dict) else _default_telemetry_payload()
+    payload.setdefault("position", {"x": 0, "y": 0, "z": 0})
+    payload.setdefault("orientation", {"roll": 0, "pitch": 0, "yaw": 0})
+    payload.setdefault("velocity", {"linear": 0, "angular": 0})
+    payload.setdefault("hazard_detected", False)
+    payload.setdefault("uptime_seconds", 0)
+    if sim_connected is not None:
+        payload["sim_connected"] = sim_connected
+    else:
+        payload.setdefault("sim_connected", False)
+    return payload
+
+
+def _dedupe_sessions_by_id(sessions: list[dict]) -> list[dict]:
+    unique: list[dict] = []
+    seen_ids: set[str] = set()
+    for session in sessions:
+        sid = str(session.get("session_id") or "").strip()
+        if sid:
+            if sid in seen_ids:
+                continue
+            seen_ids.add(sid)
+        unique.append(session)
+    return unique
+
+
 @app.get("/status")
 async def get_status():
     """Proxy GET bridge/ for rover telemetry."""
@@ -559,7 +626,11 @@ async def post_command(payload: dict):
         before_status = await _bridge_status()
         if before_status is not None:
             _update_live_mission(before_status)
-        hermes_result = await _run_hermes_command(text, user_id)
+        hermes_result = await _run_hermes_command(
+            text,
+            user_id,
+            mission_context=_build_hermes_mission_context(text, before_status),
+        )
         if hermes_result and hermes_result.get("status") in {"completed", "partial"} and hermes_result.get("response"):
             status = await _bridge_status()
             if status is not None:
@@ -669,7 +740,7 @@ async def get_sessions():
             "skills_used": "live",
             "summary": "Live mission telemetry",
         }, *sessions]
-    return {"sessions": sessions}
+    return {"sessions": _dedupe_sessions_by_id(sessions)}
 
 
 @app.get("/session/live")
@@ -926,37 +997,33 @@ async def report_pdf_save():
 async def websocket_stream(websocket: WebSocket):
     """Stream rover telemetry to connected clients every 200ms."""
     await websocket.accept()
+    last_payload: dict | None = None
+    last_ok_at = 0.0
     try:
-        while True:
-            try:
-                async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession() as session:
+            while True:
+                payload: dict | None = None
+                try:
                     async with session.get(
                         f"{BRIDGE_URL.rstrip('/')}/",
                         timeout=aiohttp.ClientTimeout(total=5),
                     ) as resp:
                         if resp.status == 200:
-                            data = await resp.json()
-                            _update_live_mission(data)
-                            await websocket.send_json(data)
-                        else:
-                            await websocket.send_json({
-                                "position": {"x": 0, "y": 0, "z": 0},
-                                "orientation": {"roll": 0, "pitch": 0, "yaw": 0},
-                                "velocity": {"linear": 0, "angular": 0},
-                                "hazard_detected": False,
-                                "uptime_seconds": 0,
-                                "sim_connected": False,
-                            })
-            except Exception:
-                await websocket.send_json({
-                    "position": {"x": 0, "y": 0, "z": 0},
-                    "orientation": {"roll": 0, "pitch": 0, "yaw": 0},
-                    "velocity": {"linear": 0, "angular": 0},
-                    "hazard_detected": False,
-                    "uptime_seconds": 0,
-                    "sim_connected": False,
-                })
-            await asyncio.sleep(0.2)
+                            payload = await resp.json()
+                except Exception:
+                    payload = None
+
+                if payload is not None:
+                    last_payload = payload
+                    last_ok_at = time.monotonic()
+                    _update_live_mission(payload)
+                    await websocket.send_json(payload)
+                else:
+                    stale = (time.monotonic() - last_ok_at) >= WS_BRIDGE_STALE_GRACE_SEC
+                    await websocket.send_json(
+                        _fallback_telemetry_payload(last_payload, sim_connected=False if stale else None)
+                    )
+                await asyncio.sleep(WS_STREAM_INTERVAL_SEC)
     except WebSocketDisconnect:
         pass
     except Exception:

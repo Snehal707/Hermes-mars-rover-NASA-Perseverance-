@@ -45,7 +45,8 @@ async def execute(**kwargs) -> str:
         y = float(kwargs.get("y", 0))
         radius = float(kwargs.get("radius", 10.0))
         hazards = memory_manager.get_nearby_hazards(x, y, radius)
-        return json.dumps({"hazards": hazards})
+        terrain = memory_manager.get_nearby_terrain(x, y, radius)
+        return json.dumps({"hazards": hazards, "terrain": terrain})
     if action == "save_discovery":
         x = float(kwargs.get("x", 0))
         y = float(kwargs.get("y", 0))

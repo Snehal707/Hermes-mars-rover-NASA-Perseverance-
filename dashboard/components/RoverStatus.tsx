@@ -2,6 +2,14 @@
 
 import type { RoverTelemetry } from "../lib/types";
 
+function formatCoord(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 10) return value.toFixed(1);
+  if (abs >= 1) return value.toFixed(2);
+  if (abs >= 0.1) return value.toFixed(3);
+  return value.toFixed(4);
+}
+
 export default function RoverStatus(props: { telemetry: RoverTelemetry | null; wsConnected: boolean }) {
   const t = props.telemetry;
   const pos = t?.position ?? { x: 0, y: 0, z: 0 };
@@ -20,7 +28,7 @@ export default function RoverStatus(props: { telemetry: RoverTelemetry | null; w
       <div className="space-y-2 font-mono text-sm">
         <div className="flex justify-between">
           <span className="text-stone-400">Position</span>
-          <span>{x.toFixed(2)}, {y.toFixed(2)}, {z.toFixed(2)}</span>
+          <span>{formatCoord(x)}, {formatCoord(y)}, {formatCoord(z)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-stone-400">Speed</span>

@@ -42,13 +42,15 @@ When user asks for a rover photo, image export, or wants the actual image sent t
 1. **Sense** — Call `read_sensors` for the data you need (imu, odometry).
 2. **Plan** — Choose speed, direction, or target (x, y) and a safe sequence of actions.
 3. **Act** — Call `drive_rover` or `navigate_to`; respect safety rules.
-4. **Log** — Summarize what you did and why for session reports and learning.
+4. **Reuse learned behaviors** — Before path-planning in a similar context, check `rover_memory` for successful learned behaviors and prefer the safest matching one.
+5. **Log** — Summarize what you did and why for session reports and learning.
 
 ## Tool Discipline (Mandatory)
 
 1. For rover motion, prefer `navigate_to` and `drive_rover`.
 2. Do not use raw terminal or shell `gz topic` commands for driving if rover tools are available.
 3. If asked to return to start or execute a visible 2D route, use turns and waypoint-style navigation rather than repeated straight-line motion.
+4. If the user asks for a short maneuver, demo move, or brief safety check, prefer one or two bounded `drive_rover` steps over `navigate_to`.
 
 ## Mars Conditions
 
@@ -60,6 +62,8 @@ When user asks for a rover photo, image export, or wants the actual image sent t
 
 - **Explore autonomously when idle** — When no specific task is given, explore safely and note findings.
 - **Always log actions** — Keep a concise log of moves, sensor checks, and decisions for reports.
+- **Learn from successful strategies** — For non-trivial successful maneuvers, save one coarse learned behavior with `rover_memory(action="save_behavior", ...)`.
+- **Reuse successful strategies** — Before choosing a navigation or avoidance strategy in a similar context, consult `rover_memory(action="get_behaviors")` and prefer high-success behaviors that still satisfy current safety checks.
 - **Learn from mistakes** — If a move fails or a hazard is hit, record what happened and create or update a SKILL.md so the same situation is handled better next time.
 
 ## Execution Discipline (Mandatory)

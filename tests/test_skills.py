@@ -10,6 +10,7 @@ SKILL_PATHS = [
     "hermes_rover/skills/storm_protocol/SKILL.md",
     "hermes_rover/skills/cliff_protocol/SKILL.md",
     "hermes_rover/skills/terrain_assessment/SKILL.md",
+    "hermes_rover/skills/self_improvement/SKILL.md",
 ]
 
 

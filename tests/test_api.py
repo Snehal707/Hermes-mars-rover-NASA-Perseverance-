@@ -45,9 +45,13 @@ def test_command_endpoint_routes_complex_mission_to_hermes(client, monkeypatch):
             "sim_connected": True,
         }
 
-    async def fake_hermes(text: str, user_id: str | None = None):
+    async def fake_hermes(text: str, user_id: str | None = None, mission_context: dict | None = None):
         assert "explore" in text.lower()
         assert user_id == "42"
+        assert mission_context is not None
+        assert mission_context["session_id"]
+        assert mission_context["telemetry"]["hazard_detected"] is False
+        assert "intent:explore" in mission_context["context_signature"]
         return {
             "response": "Hermes completed the autonomous exploration sweep.",
             "status": "completed",
@@ -92,6 +96,43 @@ def test_sessions_endpoint_includes_active_live_session(client, monkeypatch):
     assert data["sessions"][0]["session_id"] == "live-session-1"
     assert data["sessions"][0]["distance_traveled"] == pytest.approx(1.75)
     assert data["sessions"][0]["hazards_encountered"] == 2
+
+
+def test_sessions_endpoint_dedupes_duplicate_session_ids(client, monkeypatch):
+    monkeypatch.setattr(
+        api_main.memory_manager,
+        "get_sessions",
+        lambda limit=50: [
+            {
+                "session_id": "dup-session",
+                "start_time": "2026-03-13T12:00:00",
+                "end_time": "2026-03-13T12:10:00",
+                "distance_traveled": 2.0,
+                "photos_taken": 0,
+                "hazards_encountered": 0,
+                "skills_used": "drive",
+                "summary": "latest",
+            },
+            {
+                "session_id": "dup-session",
+                "start_time": "2026-03-13T11:00:00",
+                "end_time": "2026-03-13T11:10:00",
+                "distance_traveled": 1.0,
+                "photos_taken": 0,
+                "hazards_encountered": 1,
+                "skills_used": "navigate",
+                "summary": "older",
+            },
+        ],
+    )
+    monkeypatch.setattr(api_main.memory_manager, "get_active_live_session", lambda: None)
+    monkeypatch.setattr(api_main, "_active_live_session_record", lambda: None)
+
+    resp = client.get("/sessions")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["sessions"]) == 1
+    assert data["sessions"][0]["summary"] == "latest"
 
 
 def test_hazards_endpoint(client):

@@ -6,7 +6,16 @@ import type { RoverTelemetry, Hazard } from "../lib/types";
 const W = 600;
 const H = 400;
 const MIN_PIXELS_PER_METER = 6;
-const MAX_PIXELS_PER_METER = 30;
+const MAX_PIXELS_PER_METER = 500;
+const MIN_WORLD_EXTENT_METERS = 0.02;
+
+function formatMeters(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 10) return value.toFixed(1);
+  if (abs >= 1) return value.toFixed(2);
+  if (abs >= 0.1) return value.toFixed(3);
+  return value.toFixed(4);
+}
 
 export default function MapView({
   telemetry,
@@ -37,16 +46,18 @@ export default function MapView({
     // Auto-scale so both small and large moves are visible.
     // Keep origin fixed at center, adjust zoom by max seen extent.
     const maxExtentFromOrigin = Math.max(
-      1,
+      0,
       Math.abs(roverX),
       Math.abs(roverY),
       ...positionHistory.map((p) => Math.max(Math.abs(p.x), Math.abs(p.y))),
       ...hazards.map((h) => Math.max(Math.abs(h?.x ?? 0), Math.abs(h?.y ?? 0))),
     );
+    const extentForScale = Math.max(MIN_WORLD_EXTENT_METERS, maxExtentFromOrigin);
+    const paddingMeters = Math.max(0.02, extentForScale * 0.15);
     const targetPixels = Math.min(W, H) * 0.42; // leave margin from edges
     const pixelsPerMeter = Math.max(
       MIN_PIXELS_PER_METER,
-      Math.min(MAX_PIXELS_PER_METER, targetPixels / (maxExtentFromOrigin + 0.75)),
+      Math.min(MAX_PIXELS_PER_METER, targetPixels / (extentForScale + paddingMeters)),
     );
 
     const worldToCanvas = (x: number, y: number) => ({
@@ -110,7 +121,7 @@ export default function MapView({
     <div className="bg-stone-900 border border-stone-800 rounded-lg p-4">
       <h3 className="text-amber-100 font-semibold mb-1">Map</h3>
       <div className="text-[11px] text-stone-400 mb-2 font-mono">
-        Pos: {roverX.toFixed(2)}, {roverY.toFixed(2)} m
+        Pos: {formatMeters(roverX)}, {formatMeters(roverY)} m
       </div>
       <canvas
         ref={canvasRef}

@@ -17,6 +17,7 @@ if str(ROOT) not in os.environ.get("PYTHONPATH", ""):
     sys.path.insert(0, str(ROOT))
 
 from bridge.sensor_bridge import app
+import bridge.sensor_bridge as sensor_bridge
 
 
 @pytest.fixture
@@ -80,3 +81,46 @@ async def test_drive_out_of_range_clamped(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("status") == "completed"
+
+
+def test_poll_once_marks_sim_connected_when_topics_return(monkeypatch):
+    topic_values = {
+        sensor_bridge.ODOM_TOPIC: "position { x: 1.0 y: 2.0 z: 0.0 } linear { x: 0.2 } angular { z: 0.1 }",
+        sensor_bridge.IMU_TOPIC: "orientation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }",
+    }
+
+    monkeypatch.setattr(sensor_bridge, "_read_topic", lambda topic, timeout_sec=sensor_bridge.TOPIC_TIMEOUT_SEC: topic_values.get(topic, ""))
+    monkeypatch.setattr(sensor_bridge.time, "monotonic", lambda: 123.0)
+    with sensor_bridge._state_lock:
+        sensor_bridge._state["_start_time"] = 100.0
+        sensor_bridge._state["_last_ok_time"] = 0.0
+
+    sensor_bridge._poll_once()
+
+    with sensor_bridge._state_lock:
+        assert sensor_bridge._state["sim_connected"] is True
+        assert sensor_bridge._state["position"]["x"] == pytest.approx(1.0)
+        assert sensor_bridge._state["velocity"]["linear"] == pytest.approx(0.2)
+
+
+def test_poll_once_uses_world_stats_heartbeat_when_telemetry_quiet(monkeypatch):
+    topic_values = {
+        sensor_bridge.ODOM_TOPIC: "",
+        sensor_bridge.IMU_TOPIC: "",
+        sensor_bridge.STATS_TOPIC: "sim_time { sec: 12 nsec: 0 }",
+    }
+
+    monkeypatch.setattr(sensor_bridge, "_read_topic", lambda topic, timeout_sec=sensor_bridge.TOPIC_TIMEOUT_SEC: topic_values.get(topic, ""))
+    monkeypatch.setattr(sensor_bridge.time, "monotonic", lambda: 200.0)
+    with sensor_bridge._state_lock:
+        sensor_bridge._state["_start_time"] = 150.0
+        sensor_bridge._state["_last_ok_time"] = 0.0
+        sensor_bridge._state["orientation"] = {"roll": 1.0, "pitch": 2.0, "yaw": 3.0}
+        sensor_bridge._state["hazard_detected"] = True
+
+    sensor_bridge._poll_once()
+
+    with sensor_bridge._state_lock:
+        assert sensor_bridge._state["sim_connected"] is True
+        assert sensor_bridge._state["orientation"] == {"roll": 1.0, "pitch": 2.0, "yaw": 3.0}
+        assert sensor_bridge._state["hazard_detected"] is True

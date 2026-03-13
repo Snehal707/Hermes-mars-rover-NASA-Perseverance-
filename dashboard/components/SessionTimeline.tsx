@@ -69,14 +69,25 @@ export default function SessionTimeline() {
     }
   }
 
+  const renderedSessions: Session[] = [];
+  const seenSessionIds = new Set<string>();
+  for (const session of sessions) {
+    const sid = String(session.session_id || "").trim();
+    if (sid) {
+      if (seenSessionIds.has(sid)) continue;
+      seenSessionIds.add(sid);
+    }
+    renderedSessions.push(session);
+  }
+
   return (
     <div className="bg-stone-900 border border-stone-800 rounded-lg p-4">
       <h3 className="text-amber-100 font-semibold mb-3">Session Timeline</h3>
       <div className="space-y-2 font-mono text-sm max-h-64 overflow-y-auto">
-        {sessions.length === 0 && <div className="text-stone-400">No sessions yet</div>}
-        {sessions.map((s, i) => (
+        {renderedSessions.length === 0 && <div className="text-stone-400">No sessions yet</div>}
+        {renderedSessions.map((s, i) => (
           <div
-            key={s.session_id ?? `session-${i}`}
+            key={`${s.session_id ?? "session"}-${s.start_time ?? "unknown"}-${i}`}
             className="border border-stone-800 rounded p-2 cursor-pointer hover:bg-stone-800/50"
             onClick={() => s.session_id && toggle(s.session_id)}
           >

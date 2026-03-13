@@ -14,6 +14,23 @@ if not _root:
 DB_PATH = os.path.join(_root, "hermes_rover", "memory", "rover_memory.db")
 
 
+def _dedupe_session_log_conn(conn: sqlite3.Connection) -> int:
+    before = conn.total_changes
+    conn.execute(
+        """
+        DELETE FROM session_log
+        WHERE COALESCE(session_id, '') <> ''
+          AND id NOT IN (
+              SELECT MAX(id)
+              FROM session_log
+              WHERE COALESCE(session_id, '') <> ''
+              GROUP BY session_id
+          )
+        """
+    )
+    return conn.total_changes - before
+
+
 def init_db():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
@@ -68,6 +85,7 @@ def init_db():
         active INTEGER DEFAULT 1,
         source TEXT
     )""")
+    _dedupe_session_log_conn(conn)
     conn.commit()
     conn.close()
 
@@ -89,6 +107,18 @@ def get_nearby_hazards(x: float, y: float, radius: float = 10.0) -> list[dict]:
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
         "SELECT * FROM hazard_map WHERE ABS(x - ?) <= ? AND ABS(y - ?) <= ?",
+        (x, radius, y, radius),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_nearby_terrain(x: float, y: float, radius: float = 10.0) -> list[dict]:
+    init_db()
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT * FROM terrain_log WHERE ABS(x - ?) <= ? AND ABS(y - ?) <= ? ORDER BY timestamp DESC",
         (x, radius, y, radius),
     ).fetchall()
     conn.close()
@@ -118,10 +148,31 @@ def log_session(
 ):
     init_db()
     conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "INSERT INTO session_log (session_id, start_time, end_time, distance_traveled, photos_taken, hazards_encountered, skills_used, summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (session_id, start_time, end_time, distance_traveled, photos_taken, hazards_encountered, skills_used, summary),
-    )
+    existing = None
+    if str(session_id or "").strip():
+        existing = conn.execute(
+            "SELECT id FROM session_log WHERE session_id = ? ORDER BY id DESC LIMIT 1",
+            (session_id,),
+        ).fetchone()
+
+    if existing:
+        keep_id = int(existing[0])
+        conn.execute(
+            """UPDATE session_log
+               SET start_time = ?, end_time = ?, distance_traveled = ?, photos_taken = ?,
+                   hazards_encountered = ?, skills_used = ?, summary = ?
+               WHERE id = ?""",
+            (start_time, end_time, distance_traveled, photos_taken, hazards_encountered, skills_used, summary, keep_id),
+        )
+        conn.execute(
+            "DELETE FROM session_log WHERE session_id = ? AND id <> ?",
+            (session_id, keep_id),
+        )
+    else:
+        conn.execute(
+            "INSERT INTO session_log (session_id, start_time, end_time, distance_traveled, photos_taken, hazards_encountered, skills_used, summary) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (session_id, start_time, end_time, distance_traveled, photos_taken, hazards_encountered, skills_used, summary),
+        )
     conn.commit()
     conn.close()
 
@@ -131,11 +182,38 @@ def get_sessions(limit: int = 50) -> list[dict]:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
-        "SELECT * FROM session_log ORDER BY start_time DESC LIMIT ?",
+        """
+        SELECT *
+        FROM session_log
+        WHERE id IN (
+            SELECT MAX(id)
+            FROM session_log
+            WHERE COALESCE(session_id, '') <> ''
+            GROUP BY session_id
+            UNION ALL
+            SELECT id
+            FROM session_log
+            WHERE COALESCE(session_id, '') = ''
+        )
+        ORDER BY start_time DESC
+        LIMIT ?
+        """,
         (limit,),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def dedupe_session_log() -> int:
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        removed = _dedupe_session_log_conn(conn)
+        conn.commit()
+    except sqlite3.OperationalError:
+        removed = 0
+    conn.close()
+    return int(removed)
 
 
 def begin_live_session(session_id: str, start_time: str, source: str = ""):

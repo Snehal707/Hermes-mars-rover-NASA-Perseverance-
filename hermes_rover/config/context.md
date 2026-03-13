@@ -7,6 +7,8 @@
 - **Sensor data comes from gz topic commands** — tools use subprocess calls to `gz topic` (no ROS 2 / rclpy). Odometry: `/rover/odometry`. IMU: `/rover/imu`. LIDAR: `/rover/lidar`. Cameras: `/rover/mastcam`, `/rover/navcam_left`, `/rover/hazcam_front`, `/rover/hazcam_rear`.
 
 - **All actions should be logged for session reports** — what the rover did, when, and why. Prefer short, structured summaries.
+- **Mission behavior learning is active** — before path planning in a similar sensor context, consult learned behaviors and prefer those with strong success over failure counts.
+- **Successful non-trivial maneuvers should be saved** — use `rover_memory(action="save_behavior", trigger=..., behavior_action=..., session_id=...)` with coarse sensor-context triggers and existing rover tool names only.
 
 - **Skill creation:** When solving new problems, write SKILL.md files in the project’s skills directory so the same situation can be handled better in the future.
 

@@ -24,12 +24,20 @@ fi
 export GZ_SIM_RESOURCE_PATH="${GZ_SIM_RESOURCE_PATH:-$REPO_ROOT/simulation/models}"
 export PYTHONPATH="${REPO_ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 
-# Source ROS 2 (optional, for gz topic if sim is running)
-if [ -f /opt/ros/humble/setup.bash ]; then
-  source /opt/ros/humble/setup.bash
-elif [ -f /opt/ros/jazzy/setup.bash ]; then
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  export PATH="$REPO_ROOT/.venv/bin:$PATH"
+  PYTHON_BIN="$REPO_ROOT/.venv/bin/python"
+else
+  PYTHON_BIN="${PYTHON_BIN:-python3}"
+fi
+
+# Source ROS 2 (optional, for gz topic if sim is running).
+# Match start_sim.sh order to avoid mixing Jazzy/Humble binaries across processes.
+if [ -f /opt/ros/jazzy/setup.bash ]; then
   source /opt/ros/jazzy/setup.bash
+elif [ -f /opt/ros/humble/setup.bash ]; then
+  source /opt/ros/humble/setup.bash
 fi
 
 # Run Hermes with rover config (loads system_prompt.md, context.md, tools from hermes_rover/tools)
-exec python3 hermes_rover/rover_agent.py
+exec "$PYTHON_BIN" hermes_rover/rover_agent.py
