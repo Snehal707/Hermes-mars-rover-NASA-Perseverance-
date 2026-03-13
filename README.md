@@ -107,11 +107,13 @@ flowchart LR
 ## Quick Start
 
 1. **Clone** this repository
-2. **Install dependencies**: `make setup` (or `pip install -r requirements.txt` if present; install Gazebo, ROS 2 per build plan)
-3. **Configure Hermes**: `hermes setup` — select OpenRouter, add `OPENROUTER_API_KEY`
-4. **Configure `.env`**: Copy `.env.example` to `.env` and fill API keys (Telegram, etc.)
-5. **Run**: `./scripts/start_all.sh` or `make all`
-6. **Dashboard env (optional)**: In `dashboard/`, copy `.env.local.example` to `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` if API is on another host/IP.
+2. **Install dependencies:** `make setup` (or `pip install -r requirements.txt` if present; install Gazebo, ROS 2 per build plan)
+3. **Configure Hermes:** `hermes setup` — select OpenRouter, add `OPENROUTER_API_KEY`
+4. **Configure `.env`:** Copy `.env.example` to `.env` and fill API keys (Telegram, etc.)
+5. **Run:**
+   - `./scripts/start_all.sh`
+   - `make all`
+6. **Dashboard env (optional):** In `dashboard/`, copy `.env.local.example` to `.env.local` and set `NEXT_PUBLIC_API_BASE_URL` if API is on another host/IP.
 
 Then open the dashboard at `http://localhost:3000` (`make dashboard` in a separate terminal) and API docs at `http://localhost:8000/docs`.
 
