@@ -75,6 +75,22 @@ Then open the dashboard at `http://localhost:3000` (`make dashboard` in a separa
 
 ---
 
+## Simulation Modes
+
+- **Headless (local, no Gazebo window):** Run the full stack with no GUI:
+  - `./scripts/start_all.sh`
+  - `make all`
+- **Visual (VPS / remote browser):** Full stack with Gazebo headless rendering and browser visualization:
+  - `./scripts/start_all_vps.sh`
+  - `make all-vps`
+- **Visual simulation only:** Launch only the visual simulation (not the full stack) for remote viewing:
+  - `./scripts/start_sim_vps.sh`
+  - `make sim-vps`
+
+Both full-stack modes use the same rover control stack; only the simulation is headless vs visual.
+
+---
+
 ## GPU VPS Visualization
 
 If you want to keep the rover agent headless but still see the rover move on a GPU VPS, use the remote visualization path:
@@ -91,13 +107,17 @@ This keeps the Hermes control loop unchanged while exposing Gazebo visualization
 
 - **Autonomous navigation** — Natural language commands via Hermes Agent
 - **Hazard detection** — Cliffs, obstacles, tilt; storm protocol
-- **Skill learning** — SKILL.md files for obstacle-avoidance, storm-protocol, terrain assessment
+- **Skill learning** — SKILL.md skills: cliff_protocol, obstacle_avoidance, self_improvement, storm_protocol, terrain_assessment
 - **Persistent memory** — SQLite for sessions, hazards, learned behaviors
-- **Automatic learned-behavior reuse** — successful rover strategies are logged and reused in later similar missions
+- **Automatic learned behaviors** — Successful non-trivial strategies are saved via `rover_memory` and `learned_behaviors`; later similar missions reuse ranked behaviors. All decisions use live telemetry and safety checks (IMU, hazards, obstacles, rover tools).
 - **Telegram control** — Text and voice commands via bot
-- **Web dashboard** — Live telemetry, map, sensors, command input
+- **Web dashboard** — Live telemetry, map, sensors, command input. The dashboard now has stable simulation status, reliable live movement updates, and deduplicated session timeline entries (no duplicate `session_id` key collisions).
 - **Apple Watch / Siri** — Shortcuts for status, move, photo
 - **Session reports** — Cron jobs for periodic reports via Telegram
+
+### Learned Behaviors
+
+Hermes automatically saves successful non-trivial rover strategies through the existing `rover_memory` tool and `learned_behaviors` table, and reuses them on later similar missions with better success history. This does not bypass safety: decisions still depend on live telemetry, IMU tilt, hazard flags, obstacle checks, and the existing rover toolset.
 
 ---
 
@@ -130,6 +150,19 @@ hermes-mars-rover/
 | `/storm/deactivate` | POST | Disable storm mode |
 | `/skills` | GET | List loaded skills |
 | `/ws/stream` | WebSocket | Live telemetry stream |
+| `/telemetry` | GET | Telemetry snapshot |
+| `/rover/state` | GET | Rover state |
+| `/sensors` | GET | Sensor readings |
+| `/drive` | POST | Direct drive command (proxied to bridge) |
+| `/transcribe` | POST | Speech-to-text |
+| `/session/live` | GET | Active live session |
+| `/session/live/reset` | POST | Reset live session |
+| `/sessions/{session_id}` | GET | Session by ID |
+| `/hazards/nearby` | GET | Hazards near a location |
+| `/behaviors` | GET | Learned behaviors |
+| `/report` | GET, POST | Session report (plain text) |
+| `/report/pdf` | GET | Report as PDF |
+| `/report/pdf/save` | GET | Save report PDF to disk |
 
 ---
 
