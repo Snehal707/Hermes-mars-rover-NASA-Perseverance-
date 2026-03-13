@@ -126,10 +126,8 @@ Then open the dashboard at `http://localhost:3000` (`make dashboard` in a separa
   - `make all`
 - **Visual (VPS / remote browser):** Core rover stack with Gazebo headless rendering and browser visualization:
   - `./scripts/start_all_vps.sh`
-  - `make all-vps`
 - **Visual simulation only:** Launch only the visual simulation (not the core rover stack) for remote viewing:
   - `./scripts/start_sim_vps.sh`
-  - `make sim-vps`
 
 Both core-rover-stack modes use the same rover control stack; only the simulation is headless vs visual.
 
