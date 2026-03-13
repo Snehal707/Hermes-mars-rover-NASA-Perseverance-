@@ -6,7 +6,7 @@
 [![Hermes Agent](https://img.shields.io/badge/Hermes%20Agent-Nous%20Research-red.svg)](https://github.com/NousResearch/hermes-agent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the brain. Control a Perseverance-class rover in Gazebo via natural language, Telegram, web dashboard, or Apple Watch. Features autonomous navigation, hazard detection, skill learning, and persistent memory.
+AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the brain. The rover runs **autonomous missions**: give a high-level goal in natural language (CLI, Telegram, web dashboard, or Apple Watch) and Hermes plans and executes it using navigation, hazard detection, skill learning, and persistent memory.
 
 ---
 
@@ -150,7 +150,7 @@ This keeps the Hermes control loop unchanged while exposing Gazebo visualization
 ## Features
 
 - **Rover tools** — Hermes uses these tools: `drive_rover`, `read_sensors`, `navigate_to`, `check_hazards`, `rover_memory`, `generate_report`, `capture_camera_image`.
-- **Autonomous navigation** — Natural language commands via Hermes Agent
+- **Autonomous missions** — Natural language goal → Hermes plans and runs the mission (navigation, sensors, hazards, reports)
 - **Hazard detection** — Cliffs, obstacles, tilt; storm protocol
 - **Skill learning** — SKILL.md skills: cliff_protocol, obstacle_avoidance, self_improvement, storm_protocol, terrain_assessment
 - **Persistent memory** — SQLite for sessions, hazards, learned behaviors
