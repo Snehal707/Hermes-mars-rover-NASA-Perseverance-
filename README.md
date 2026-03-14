@@ -8,6 +8,16 @@
 
 AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the brain. The rover runs **autonomous missions**: give a high-level goal in natural language (CLI, Telegram, web dashboard, or Apple Watch) and Hermes plans and executes it using navigation, hazard detection, skill learning, and persistent memory.
 
+### Tech stack
+
+| Layer       | Technologies |
+|------------|--------------|
+| **AI**     | Hermes Agent (Nous Research), OpenRouter |
+| **Backend**| Python 3.11+, FastAPI, Uvicorn, SQLite |
+| **Simulation** | Gazebo Harmonic/Jetty, ROS 2 Humble/Jazzy |
+| **Frontend** | Next.js 15, React 19, Tailwind CSS |
+| **Integrations** | python-telegram-bot, Apple Shortcuts, WebSocket |
+
 ### Demo videos
 
 [![Headless simulation](https://img.youtube.com/vi/DI92oX_yOjE/hqdefault.jpg)](https://youtu.be/DI92oX_yOjE) [![Visual simulation](https://img.youtube.com/vi/RNG-bEzs0pc/hqdefault.jpg)](https://youtu.be/RNG-bEzs0pc)
@@ -24,52 +34,43 @@ AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the b
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────┐
-│                    CONTROL LAYER                         │
-│  ┌─────────┐  ┌───────────┐  ┌───────────┐  ┌─────────┐  │
-│  │Telegram │  │Apple Watch│  │ Web Dash  │  │ Hermes  │  │
-│  │  Bot    │  │  / Siri   │  │ (Next.js) │  │  CLI    │  │
-│  └────┬────┘  └─────┬─────┘  └─────┬─────┘  └────┬────┘  │
-│       │             │              │              │      │
-│       └─────────────┴──────┬───────┴──────────────┘      │
-│                            │                             │
-│                    ┌───────▼────────┐                    │
-│                    │  COMMAND API   │                    │
-│                    │  (FastAPI)     │                    │
-│                    └───────┬────────┘                    │
-└────────────────────────────┼─────────────────────────────┘
-                             │
-┌────────────────────────────┼─────────────────────────────┐
-│                        AI LAYER                          │
-│                    ┌───────▼────────┐                    │
-│                    │ HERMES AGENT   │                    │
-│                    │ (Nous Hermes)  │                    │
-│                    │ • Tool Calling │                    │
-│                    │ • Memory       │                    │
-│                    │ • Skills       │                    │
-│                    └───────┬────────┘                    │
-│                            │                             │
-│              ┌─────────────┼─────────────┐               │
-│        ┌─────▼─────┐ ┌─────▼────┐ ┌─────▼─────┐          │
-│        │  Skill DB │ │ Memory   │ │ Session   │          │
-│        │ (SKILL.md)│ │ (SQLite) │ │ Logs (DB) │          │
-│        └───────────┘ └──────────┘ └───────────┘          │
-└────────────────────────────┼─────────────────────────────┘
-                             │
-┌────────────────────────────┼─────────────────────────────┐
-│                     SIMULATION LAYER                     │
-│                    ┌───────▼────────┐                    │
-│                    │  SENSOR BRIDGE │                    │
-│                    │  (port 8765)   │                    │
-│                    └───────┬────────┘                    │
-│                    ┌───────▼────────┐                    │
-│                    │  GAZEBO SIM    │                    │
-│                    │ • Mars World   │                    │
-│                    │ • Perseverance │                    │
-│                    │ • Sensors      │                    │
-│                    └────────────────┘                    │
-└──────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+  subgraph control["CONTROL LAYER"]
+    telegram["Telegram Bot"]
+    apple["Apple Watch / Siri"]
+    dash["Web Dash\n(Next.js)"]
+    cli["Hermes CLI"]
+  end
+
+  subgraph api["COMMAND API"]
+    fastapi["FastAPI"]
+  end
+
+  subgraph ai["AI LAYER"]
+    agent["HERMES AGENT\n(Nous Hermes)\n• Tool Calling\n• Memory\n• Skills"]
+    skill["Skill DB\n(SKILL.md)"]
+    mem["Memory\n(SQLite)"]
+    sess["Session\nLogs (DB)"]
+  end
+
+  subgraph sim["SIMULATION LAYER"]
+    bridge["SENSOR BRIDGE\n(port 8765)"]
+    gazebo["GAZEBO SIM\n• Mars World\n• Perseverance\n• Sensors"]
+  end
+
+  telegram --> fastapi
+  apple --> fastapi
+  dash --> fastapi
+  cli --> fastapi
+
+  fastapi --> agent
+  agent --> skill
+  agent --> mem
+  agent --> sess
+
+  agent --> bridge
+  bridge --> gazebo
 ```
 
 ---
