@@ -12,6 +12,14 @@ AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the b
 
 [![Headless simulation](https://img.youtube.com/vi/DI92oX_yOjE/hqdefault.jpg)](https://youtu.be/DI92oX_yOjE) [![Visual simulation](https://img.youtube.com/vi/RNG-bEzs0pc/hqdefault.jpg)](https://youtu.be/RNG-bEzs0pc)
 
+## Screenshots
+
+| Hermes CLI -- Autonomous Mission Complete | Web Dashboard -- Live Telemetry & Map |
+|---|---|
+| ![Hermes CLI](docs/screenshots/hermes_cli_mission.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+
+*Left: Hermes CLI completing a full autonomous return-to-base mission. Final position X=0.21m, Y=0.07m (0.22m from origin), heading 0.015 rad. 25.3min uptime, all systems nominal, zero hazards on return. Right: Next.js mission control dashboard with real-time WebSocket telemetry stream, 2D rover path trace on map, IMU sensor readings (roll/pitch/yaw), simulation status (connected), session timeline with distance and hazard counts, and natural language command input.*
+
 ---
 
 ## Architecture
