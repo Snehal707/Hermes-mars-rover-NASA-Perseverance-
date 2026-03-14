@@ -119,6 +119,19 @@ flowchart LR
 
 Then open the dashboard at `http://localhost:3000` (`make dashboard` in a separate terminal) and API docs at `http://localhost:8000/docs`.
 
+### Web dashboard commands
+
+From repo root:
+
+- `make dashboard` — start Next.js dev server (dashboard at http://localhost:3000)
+
+From `dashboard/`:
+
+- `npm run dev` — start dev server
+- `npm run build` — production build
+- `npm run start` — run production build (after `npm run build`)
+- `npm run lint` — run lint
+
 ---
 
 ## Simulation Modes
