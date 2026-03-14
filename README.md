@@ -165,7 +165,7 @@ This keeps the Hermes control loop unchanged while exposing Gazebo visualization
 - **Rover tools** — Hermes uses these tools: `drive_rover`, `read_sensors`, `navigate_to`, `check_hazards`, `rover_memory`, `generate_report`, `capture_camera_image`.
 - **Autonomous missions** — Natural language goal → Hermes plans and runs the mission (navigation, sensors, hazards, reports)
 - **Hazard detection** — Cliffs, obstacles, tilt; storm protocol
-- **Skill learning** — SKILL.md skills: cliff_protocol, obstacle_avoidance, self_improvement, storm_protocol, terrain_assessment
+- **Skill learning** — SKILL.md skills: cliff_protocol, obstacle_avoidance, self_improvement, storm_protocol, terrain_assessment, camera_telegram_delivery
 - **Persistent memory** — SQLite for sessions, hazards, learned behaviors
 - **Automatic learned behaviors** — Successful non-trivial strategies are saved via `rover_memory` and `learned_behaviors`; later similar missions reuse ranked behaviors. All decisions use live telemetry and safety checks (IMU, hazards, obstacles, rover tools).
 - **Telegram control** — Text and voice commands via bot

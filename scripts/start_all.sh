@@ -13,6 +13,8 @@ source /opt/ros/humble/setup.bash 2>/dev/null || source /opt/ros/jazzy/setup.bas
 export GZ_SIM_RESOURCE_PATH="$REPO_ROOT/simulation/models"
 export PYTHONPATH="$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
+SIM_WORLD="${HERMES_SIM_WORLD:-simulation/worlds/mars_terrain.sdf}"
+
 # Free ports so we don't get "address already in use"
 pkill -f "uvicorn bridge.sensor_bridge" 2>/dev/null || true
 pkill -f "uvicorn api.main" 2>/dev/null || true
@@ -26,7 +28,7 @@ sleep 1
 
 echo "Starting Gazebo headless..."
 echo "(If Gazebo crashes with Ogre/material errors, run it alone in another terminal to debug.)"
-gz sim -s simulation/worlds/mars_terrain.sdf &
+gz sim -s "$SIM_WORLD" &
 GZ_PID=$!
 sleep 5
 # Unpause simulation so the rover responds to drive commands immediately

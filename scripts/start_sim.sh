@@ -10,6 +10,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$REPO_ROOT"
 
 export GZ_SIM_RESOURCE_PATH="$REPO_ROOT/simulation/models"
+SIM_WORLD="${HERMES_SIM_WORLD:-simulation/worlds/mars_terrain.sdf}"
+SIM_VERBOSITY="${HERMES_SIM_VERBOSITY:-3}"
 
 # Source ROS 2 (prefer Jazzy, then Humble)
 if [ -f /opt/ros/jazzy/setup.bash ]; then
@@ -24,7 +26,7 @@ fi
 cleanup() { kill $GZ_PID 2>/dev/null || true; exit 0; }
 trap cleanup SIGINT SIGTERM
 
-gz sim -r simulation/worlds/mars_terrain.sdf -v 3 &
+gz sim -r "$SIM_WORLD" -v "$SIM_VERBOSITY" &
 GZ_PID=$!
 
 # Give Gazebo a moment to start
