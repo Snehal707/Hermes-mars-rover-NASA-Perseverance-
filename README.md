@@ -10,8 +10,7 @@ AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the b
 
 ### Demo videos
 
-- **Headless simulation:** [https://youtu.be/DI92oX_yOjE](https://youtu.be/DI92oX_yOjE)
-- **Visual simulation:** [https://youtu.be/RNG-bEzs0pc](https://youtu.be/RNG-bEzs0pc)
+[![Headless simulation](https://img.youtube.com/vi/DI92oX_yOjE/hqdefault.jpg)](https://youtu.be/DI92oX_yOjE) [![Visual simulation](https://img.youtube.com/vi/RNG-bEzs0pc/hqdefault.jpg)](https://youtu.be/RNG-bEzs0pc)
 
 ---
 
