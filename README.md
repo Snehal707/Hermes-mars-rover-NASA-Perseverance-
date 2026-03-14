@@ -139,9 +139,9 @@ From `dashboard/`:
 - **Headless (local, no Gazebo window):** Run the core rover stack with no GUI:
   - `./scripts/start_all.sh`
   - `make all`
-- **Visual (VPS / remote browser)** — Full stack (API + Hermes + bridge + Gazebo + browser viz). One command runs everything:
+- **Visual (VPS / remote browser)** — Runs `start_all.sh` with VPS env (websocket world, server-only, headless rendering): Gazebo, sensor bridge (8765), API (8000), Hermes gateway, Hermes agent. World: `mars_terrain_websocket.sdf` (browser viz on port 9002).
   - `./scripts/start_all_vps.sh`
-- **Visual simulation only** — Gazebo + browser viz only. No API, no Hermes, no bridge. Use when the rest of the stack is already running or you only need the sim view:
+- **Visual simulation only** — Runs `start_sim.sh` with VPS env: Gazebo only (+ ROS parameter_bridge). No sensor bridge, API, or Hermes. World: `mars_terrain_websocket.sdf`. Use when you only need the sim (e.g. rest of stack runs elsewhere).
   - `./scripts/start_sim_vps.sh`
 
 Both full-stack modes (headless and visual) use the same rover control stack; only the simulation is headless vs visual.
