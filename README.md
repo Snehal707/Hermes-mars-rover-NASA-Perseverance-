@@ -30,7 +30,7 @@ AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the b
 │  ┌─────────┐  ┌───────────┐  ┌───────────┐  ┌─────────┐  │
 │  │Telegram │  │Apple Watch│  │ Web Dash  │  │ Hermes  │  │
 │  │  Bot    │  │  / Siri   │  │ (Next.js) │  │  CLI    │  │
-│  └────┬────┘  └─────┬─────┘  └─────┬─────┘  └─────┬───┘  │
+│  └────┬────┘  └─────┬─────┘  └─────┬─────┘  └────┬────┘  │
 │       │             │              │              │      │
 │       └─────────────┴──────┬───────┴──────────────┘      │
 │                            │                             │
@@ -113,6 +113,7 @@ flowchart LR
   - Contact: `/rover/contact`
   - Joint states: `/rover/joint_states`
 - **Drive system:** Six-wheel diff-drive.
+- **Physics:** ODE rigid-body simulation with Mars gravity (3.721 m/s²), collision, friction, inertia, and wheel slip. Movement via DiffDrive joint torques, not teleportation.
 - **Local/default world:** `simulation/worlds/mars_terrain.sdf`
 - **Remote visual / websocket world:** `simulation/worlds/mars_terrain_websocket.sdf`
 
