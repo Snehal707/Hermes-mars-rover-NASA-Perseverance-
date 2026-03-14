@@ -8,6 +8,11 @@
 
 AI-powered Mars rover simulation using **Hermes Agent** (Nous Research) as the brain. The rover runs **autonomous missions**: give a high-level goal in natural language (CLI, Telegram, web dashboard, or Apple Watch) and Hermes plans and executes it using navigation, hazard detection, skill learning, and persistent memory.
 
+### Demo videos
+
+- **Headless simulation:** [https://youtu.be/DI92oX_yOjE](https://youtu.be/DI92oX_yOjE)
+- **Visual simulation:** [https://youtu.be/RNG-bEzs0pc](https://youtu.be/RNG-bEzs0pc)
+
 ---
 
 ## Architecture
