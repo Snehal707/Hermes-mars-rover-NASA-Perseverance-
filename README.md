@@ -139,12 +139,12 @@ From `dashboard/`:
 - **Headless (local, no Gazebo window):** Run the core rover stack with no GUI:
   - `./scripts/start_all.sh`
   - `make all`
-- **Visual (VPS / remote browser):** Core rover stack with Gazebo headless rendering and browser visualization:
+- **Visual (VPS / remote browser)** — Full stack (API + Hermes + bridge + Gazebo + browser viz). One command runs everything:
   - `./scripts/start_all_vps.sh`
-- **Visual simulation only:** Launch only the visual simulation (not the core rover stack) for remote viewing:
+- **Visual simulation only** — Gazebo + browser viz only. No API, no Hermes, no bridge. Use when the rest of the stack is already running or you only need the sim view:
   - `./scripts/start_sim_vps.sh`
 
-Both core-rover-stack modes use the same rover control stack; only the simulation is headless vs visual.
+Both full-stack modes (headless and visual) use the same rover control stack; only the simulation is headless vs visual.
 
 ---
 
