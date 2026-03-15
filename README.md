@@ -248,7 +248,7 @@ Built for **Nous Research hackathon** to showcase Hermes Agent capabilities: too
 
 - **Nous Research** — Hermes Agent
 - **Gazebo** — Simulation
-- **ROS 2** — Middleware
+- **ROS 2** — Optional (sim-only bridge; main stack uses Gazebo Transport)
 - **Snehal (@SnehalRekt)** — Build plan
 
 ---
